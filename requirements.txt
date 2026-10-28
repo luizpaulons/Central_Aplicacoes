@@ -5,3 +5,4 @@ pyodbc
 openpyxl
 reportlab
 python-dateutil
+sqlalchemy
