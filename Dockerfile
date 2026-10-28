@@ -1,10 +1,12 @@
 FROM python:3.11-slim
+
+# Define a pasta de trabalho dentro do container
 WORKDIR /app
 
-# Evita buffering nas saídas de log
+# Evita buffering nas saídas de log do Python
 ENV PYTHONUNBUFFERED=1
 
-# Instala dependências do sistema e o driver ODBC para SQL Server
+# Instala dependências do sistema e o driver Microsoft ODBC 18 para SQL Server
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg2 \
@@ -17,17 +19,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-# Instala bibliotecas Python
+# Copia e instala as bibliotecas Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código da aplicação
+# Copia os arquivos e módulos da aplicação
 COPY . .
 
 # Expõe a porta padrão do Streamlit
 EXPOSE 8501
 
-# Comando de inicialização
+# Comando de inicialização do Streamlit
 CMD ["streamlit", "run", "main.py", "--server.port=8501", "--server.address=0.0.0.0"]
