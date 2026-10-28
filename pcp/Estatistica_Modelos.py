@@ -19,30 +19,67 @@ Utilize o menu na **barra lateral esquerda** para navegar pelas telas do sistema
 3. **📑 Importar Excel e Gerar Relatório**: Carregue o arquivo `.xlsx` do ERP CHB para gerar os relatórios consolidados em PDF e Excel.
 """)
 
-# ==========================================================
-# MENU LATERAL ESQUERDO DO PCP
-# ==========================================================
-#st.sidebar.title("🏭 Módulo PCP")
-#st.sidebar.markdown("---")
+# Estilo global para manter campos de texto em caixa alta
+st.markdown("""
+<style>
+    input[type="text"] {
+        text-transform: uppercase !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-menu_selecionado = st.sidebar.radio(
-    "Navegação Interna:",
+# ==========================================================
+# MENU LATERAL ESQUERDO DO MÓDULO PCP
+# ==========================================================
+st.sidebar.title("🏭 PCP - Solados e EVA")
+st.sidebar.markdown("---")
+
+submenu_pcp = st.sidebar.radio(
+    "Navegação PCP:",
     [
         "📝 De-Para",
         "⚙️ Cadastro de Solados e Cores",
-        "📑 Importar Excel e Gerar Relatório"
+        "📑 Importar Relatório CHB"
     ]
 )
 st.sidebar.markdown("---")
+st.sidebar.caption("Central de Controle PCP / CHB")
 
-if menu_selecionado == "📝 De-Para":
-    # (Código da tela de De-Para com SQL Server)
-    ...
+# ==========================================================
+# CARREGAMENTO DINÂMICO DAS TELAS
+# ==========================================================
+# Procura os arquivos na raiz do app ou na pasta pages/
+def obter_caminho_arquivo(nome_arquivo):
+    locais_possiveis = [
+        nome_arquivo,
+        os.path.join("pages", nome_arquivo),
+        os.path.join("pcp", nome_arquivo)
+    ]
+    for caminho in locais_possiveis:
+        if os.path.exists(caminho):
+            return caminho
+    return nome_arquivo
 
-elif menu_selecionado == "⚙️ Cadastro de Solados e Cores":
-    # (Código da tela com consulta da tabela PC10T)
-    ...
+if submenu_pcp == "📝 De-Para":
+    caminho = obter_caminho_arquivo("de-para.py")
+    if os.path.exists(caminho):
+        with open(caminho, "r", encoding="utf-8") as f:
+            exec(f.read(), globals())
+    else:
+        st.error(f"Arquivo '{caminho}' não encontrado.")
 
-elif menu_selecionado == "📑 Importar Excel e Gerar Relatório":
-    # (Código de processamento do Excel e geração do PDF/Excel)
-    ...
+elif submenu_pcp == "⚙️ Cadastro de Solados e Cores":
+    caminho = obter_caminho_arquivo("cadastro_solados.py")
+    if os.path.exists(caminho):
+        with open(caminho, "r", encoding="utf-8") as f:
+            exec(f.read(), globals())
+    else:
+        st.error(f"Arquivo '{caminho}' não encontrado.")
+
+elif submenu_pcp == "📑 Importar Relatório CHB":
+    caminho = obter_caminho_arquivo("importador.py")
+    if os.path.exists(caminho):
+        with open(caminho, "r", encoding="utf-8") as f:
+            exec(f.read(), globals())
+    else:
+        st.error(f"Arquivo '{caminho}' não encontrado.")
