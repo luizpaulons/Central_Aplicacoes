@@ -24,7 +24,7 @@ pagina_home = st.Page(
     default=True
 )
 
-# --- 2. PÁGINAS DOS MÓDULOS ---
+# --- 2. PÁGINAS DO MÓDULO FINANCEIRO ---
 paginas_financeiro = [
     st.Page(
         "financeiro/Consulta_Cliente.py",
@@ -34,23 +34,24 @@ paginas_financeiro = [
     )
 ]
 
-# Ao clicar em PCP no topo, carrega diretamente o arquivo Estatistica_Modelos.py
+# --- 3. PÁGINA DO MÓDULO PCP ---
+# Ao clicar em "Estatística de Modelos" no menu superior, chama a página inicial do PCP
 paginas_pcp = [
     st.Page(
-        "pcp/Estatistica_Modelos.py",
+        "pages/Estatistica_Modelos.py",  # Se o arquivo estiver em pages/
         title="Estatística de Modelos",
-        icon="🏭",
-        url_path="pcp-estatistica"
+        icon="📈",
+        url_path="estatistica-modelos"
     )
 ]
 
-# --- 3. AGRUPAMENTO DOS MENUS SUPERIORES ---
+# --- 4. AGRUPAMENTO DOS MENUS SUPERIORES ---
 rotas = {
     "Central": [pagina_home],
     "Financeiro": paginas_financeiro,
     "PCP": paginas_pcp
 }
 
-# --- 4. NAVEGAÇÃO NO TOPO ---
+# --- 5. NAVEGAÇÃO NO TOPO ---
 pg = st.navigation(rotas, position="top")
 pg.run()
