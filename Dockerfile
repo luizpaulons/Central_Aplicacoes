@@ -6,18 +6,14 @@ WORKDIR /app
 # Evita buffering nas saídas de log do Python
 ENV PYTHONUNBUFFERED=1
 
-# Instala dependências do sistema e o driver Microsoft ODBC 18 para SQL Server
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    gnupg2 \
-    unixodbc \
-    unixodbc-dev \
-    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
-    && curl -fsSL https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+# Instalar dependências básicas, curl e chaves
+RUN apt-get update && apt-get install -y curl gnupg apt-transport-https unixodbc unixodbc-dev
+
+# Adicionar repositório oficial da Microsoft e instalar o driver ODBC 18
+RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+    && curl -fsSL https://packages.microsoft.com/config/debian/12/prod.list | tee /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18
 
 # Copia e instala as bibliotecas Python
 COPY requirements.txt .
