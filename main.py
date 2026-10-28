@@ -35,17 +35,17 @@ paginas_financeiro = [
 ]
 
 # --- 3. PÁGINA DO MÓDULO PCP ---
-# Ao clicar em "Estatística de Modelos" no menu superior, chama a página inicial do PCP
+# Aponta exatamente para o arquivo existente na pasta pcp/
 paginas_pcp = [
     st.Page(
-        "pcp/Estatistica_Modelos.py",  # Se o arquivo estiver em pages/
+        "pcp/Estatistica_Modelos.py",
         title="Estatística de Modelos",
-        icon="📈",
-        url_path="estatistica-modelos"
+        icon="🏭",
+        url_path="pcp-estatistica"
     )
 ]
 
-# --- 4. AGRUPAMENTO DOS MENUS SUPERIORES ---
+# --- 4. AGRUPAMENTO DOS MENUS ---
 rotas = {
     "Central": [pagina_home],
     "Financeiro": paginas_financeiro,
