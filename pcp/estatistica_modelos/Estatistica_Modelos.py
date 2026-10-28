@@ -8,7 +8,7 @@ import streamlit as st
 # ==========================================================
 diretorio_projeto = Path(__file__).resolve().parent
 
-# Adiciona /app/pcp/estatistica_modelos ao sys.path para localizar "import utils"
+# Adiciona o diretório ao sys.path para localizar "import utils"
 caminho_str = str(diretorio_projeto)
 if caminho_str not in sys.path:
     sys.path.insert(0, caminho_str)
@@ -25,6 +25,7 @@ st.sidebar.markdown("---")
 menu_selecionado = st.sidebar.radio(
     "Navegação PCP:",
     [
+        "🏠 Início",
         "📝 De-Para",
         "⚙️ Cadastro de Solados e Cores",
         "📑 Importar Relatório CHB"
@@ -45,7 +46,8 @@ def carregar_script(nomes_possiveis):
         caminhos_diretos = [
             pasta_pages / nome,
             diretorio_projeto / nome,
-            Path("/app/pcp/estatistica_modelos/pages") / nome
+            Path("/app/pcp/estatistica_modelos/pages") / nome,
+            Path("/app/pcp/estatistica_modelo/pages") / nome
         ]
         for c in caminhos_diretos:
             if c.is_file():
@@ -75,7 +77,18 @@ def carregar_script(nomes_possiveis):
 # ==========================================================
 # RENDERIZAÇÃO DA PÁGINA SELECIONADA
 # ==========================================================
-if menu_selecionado == "📝 De-Para":
+if menu_selecionado == "🏠 Início":
+    st.markdown("""
+### Bem-vindo ao sistema de controle e relatórios do PCP!
+
+Utilize o menu na **barra lateral esquerda** para navegar pelas telas do sistema:
+
+1. **📝 De-Para**: Faça o vínculo das referências e cores ativas do banco ERP com os solados e cores de EVA.
+2. **⚙️ Cadastro de Solados e Cores**: Cadastre novos solados e consulte as cores oficiais diretamente da tabela `PC10T`.
+3. **📑 Importar Excel e Gerar Relatório**: Carregue o arquivo `.xlsx` do ERP CHB para gerar os relatórios consolidados em PDF e Excel.
+""")
+
+elif menu_selecionado == "📝 De-Para":
     carregar_script(["de-para.py", "de_para.py", "1_📝_De_Para.py", "1_De_Para.py"])
 
 elif menu_selecionado == "⚙️ Cadastro de Solados e Cores":
