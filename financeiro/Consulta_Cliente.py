@@ -1,4 +1,3 @@
-from financeiro.dashboard_geral import renderizar_dashboard
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,42 +6,37 @@ from io import BytesIO
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
-#st.set_page_config(page_title="Painel Financeiro de Clientes", layout="wide")
+st.set_page_config(page_title="Painel Financeiro de Clientes", layout="wide")
 st.title("📊 Painel Financeiro e Títulos por Cliente")
 
 # --- CONEXÃO COM O BANCO DE DADOS ---
 def get_connection():
-    # 1. Lê as credenciais do secrets
     if "sql_server_CHB" in st.secrets:
         cfg = st.secrets["sql_server_CHB"]
     elif "sql_server" in st.secrets:
         cfg = st.secrets["sql_server"]
     else:
         cfg = {
-            "host": "SEU_SERVIDOR_OU_IP",
+            "host": "localhost",
             "port": 1433,
             "database": "CHB",
-            "username": "SEU_USUARIO",
-            "password": "SUA_SENHA",
+            "username": "sa",
+            "password": "",
             "driver": "SQL Server",
         }
 
-    # 2. Resolução do Host/Porta
     host = cfg.get("host") or cfg.get("server", "localhost")
     port = cfg.get("port", 1433)
     server_str = f"{host},{port}" if port else host
 
-    # 3. Mapeamento e validação do Driver ODBC
     drivers_disponiveis = pyodbc.drivers()
     driver_solicitado = cfg.get("driver", "").replace("+", " ").strip()
     
     driver_escolhido = None
 
-    # Tenta usar o driver especificado no secrets se estiver instalado
     if driver_solicitado and driver_solicitado in drivers_disponiveis:
         driver_escolhido = f"{{{driver_solicitado}}}"
     else:
-        # Fallback de drivers por ordem de preferência
         for d in ["ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server", "SQL Server Native Client 11.0", "SQL Server"]:
             if d in drivers_disponiveis:
                 driver_escolhido = f"{{{d}}}"
@@ -51,7 +45,6 @@ def get_connection():
     if not driver_escolhido:
         raise RuntimeError(f"Nenhum driver compatível com SQL Server encontrado. Drivers instalados: {drivers_disponiveis}")
 
-    # 4. Montagem da connection string do pyodbc
     conn_str = (
         f"DRIVER={driver_escolhido};"
         f"SERVER={server_str};"
@@ -59,20 +52,35 @@ def get_connection():
         f"UID={cfg['username']};"
         f"PWD={cfg['password']};"
     )
-    
-    # Flags de segurança para ODBC Driver 18/17
     if "ODBC Driver" in driver_escolhido:
         conn_str += "TrustServerCertificate=yes;"
         
     return pyodbc.connect(conn_str)
 
+# --- REGRAS DE CLASSIFICAÇÃO E DIAS DE ATRASO ---
+def classificar_tipo_cliente(media_atraso):
+    """
+    Classificação por Média de Dias de Atraso Histórico:
+    0 dia = AA | 1 a 6 dias = A | 7 a 15 dias = AB | 16 a 30 dias = B
+    31 a 45 dias = C | 46 a 60 dias = D | Acima de 61 dias = E
+    """
+    if media_atraso <= 0:
+        return "AA", "#198754", "#d1e7dd"  # Verde escuro / fundo claro
+    elif media_atraso <= 6:
+        return "A", "#0d6efd", "#cfe2ff"   # Azul
+    elif media_atraso <= 15:
+        return "AB", "#0dcaf0", "#cff4fc"  # Ciano / Turquesa
+    elif media_atraso <= 30:
+        return "B", "#ffc107", "#fff3cd"   # Amarelo
+    elif media_atraso <= 45:
+        return "C", "#fd7e14", "#ffe5d0"   # Laranja
+    elif media_atraso <= 60:
+        return "D", "#dc3545", "#f8d7da"   # Vermelho
+    else:
+        return "E", "#842029", "#f5c2c7"   # Vinho escuro
+
 def calcular_dias_atraso_real(dt_venc, dt_pgto):
-    """
-    Calcula os dias de atraso considerando a tolerância bancária de final de semana.
-    - Se vencer no sábado (weekday=5) e pagar até segunda (2 dias): 0 dias.
-    - Se vencer no domingo (weekday=6) e pagar na segunda (1 dia): 0 dias.
-    - Se pagar após a segunda-feira: conta os dias corridos a partir do vencimento.
-    """
+    """Calcula os dias de atraso com tolerância de liquidação na segunda para finais de semana."""
     if pd.isnull(dt_venc) or pd.isnull(dt_pgto):
         return 0
     
@@ -81,7 +89,6 @@ def calcular_dias_atraso_real(dt_venc, dt_pgto):
         return 0
     
     dia_semana_venc = dt_venc.weekday()  # 5 = Sábado, 6 = Domingo
-    
     if dia_semana_venc == 5 and dias_corridos <= 2:
         return 0
     elif dia_semana_venc == 6 and dias_corridos <= 1:
@@ -89,32 +96,7 @@ def calcular_dias_atraso_real(dt_venc, dt_pgto):
     
     return dias_corridos
 
-def classificar_tipo_cliente(media_atraso):
-    """
-    Classifica o tipo/conceito do cliente de acordo com a média de atraso em dias:
-    - 0 dia = AA
-    - 1 a 6 dias = A
-    - 7 a 15 dias = AB
-    - 16 a 30 dias = B
-    - 31 a 45 dias = C
-    - 46 a 60 dias = D
-    - Acima de 61 dias = E
-    """
-    if media_atraso <= 0:
-        return "AA", "#198754", "#d1e7dd"  # Verde escuro / fundo claro
-    elif media_atraso <= 6:
-        return "A", "#0d6efd", "#cfe2ff"   # Azul
-    elif media_atraso <= 15:
-        return "AB", "#0dcaf0", "#cff4fc"  # Ciano/Turquesa
-    elif media_atraso <= 30:
-        return "B", "#ffc107", "#fff3cd"   # Amarelo/Atenção
-    elif media_atraso <= 45:
-        return "C", "#fd7e14", "#ffe5d0"   # Laranja
-    elif media_atraso <= 60:
-        return "D", "#dc3545", "#f8d7da"   # Vermelho
-    else:
-        return "E", "#842029", "#f5c2c7"   # Vinho/Crítico
-
+# --- CONSULTA DE TÍTULOS ---
 def consultar_titulos(cod_cliente: int, num_titulo: int = None, 
                       dt_emis_ini: date = None, dt_emis_fim: date = None,
                       dt_venc_ini: date = None, dt_venc_fim: date = None):
@@ -218,7 +200,6 @@ def calcular_pico_historico(df):
     if pd.isnull(max_saldo) or max_saldo <= 0:
         return 0.0, None
 
-    # Obtém a linha onde o saldo acumulado atinge o maior valor pela primeira vez
     linha_pico = df_eventos.loc[df_eventos["SaldoAcumulado"].idxmax()]
     return float(max_saldo), linha_pico["Data"]
 
@@ -333,30 +314,14 @@ if btn_consultar:
                     
                     hoje = pd.Timestamp.now().normalize()
 
-                    # Cálculo de dias de atraso
-                    df["DiasAtraso"] = df.apply(
-                    lambda r: calcular_dias_atraso_real(r["Vencimento"], r["DataPagamento"]) 
-                    if r["Status"] == "PAGO" else 0,
-                    axis=1
-                    )
-
-                    # Classificação refinada do Status
-                    # Normalização dos tipos
-                    df["Valor"] = pd.to_numeric(df["Valor"], errors="coerce").fillna(0.0)
-                    df["Emissao"] = pd.to_datetime(df["Emissao"], errors="coerce")
-                    df["Vencimento"] = pd.to_datetime(df["Vencimento"], errors="coerce")
-                    df["DataPagamento"] = pd.to_datetime(df["DataPagamento"], errors="coerce")
-                    
-                    hoje = pd.Timestamp.now().normalize()
-
-                    # Calcula os dias de atraso histórico considerando a tolerância de fins de semana
+                    # Calcula os dias de atraso histórico considerando a tolerância de finais de semana
                     df["DiasAtraso"] = df.apply(
                         lambda r: calcular_dias_atraso_real(r["Vencimento"], r["DataPagamento"]) 
                         if r["Status"] == "PAGO" else 0,
                         axis=1
                     )
 
-                    # Classificação refinada do Status com a indentação correta:
+                    # Classificação refinada do Status
                     def classificar_status(row):
                         if row["Status"] == "PAGO":
                             if row["DiasAtraso"] > 0:
@@ -368,7 +333,7 @@ if btn_consultar:
 
                     df["Status"] = df.apply(classificar_status, axis=1)
 
-                    # --- DADOS DE IDENTIFICAÇÃO DO CLIENTE (CABEÇALHO) ---
+                    # --- DADOS DE IDENTIFICAÇÃO DO CLIENTE ---
                     nome_cliente = df["NomeCliente"].dropna().iloc[0] if not df["NomeCliente"].dropna().empty else "Não informado"
                     uf_cliente = df["UF"].dropna().iloc[0] if not df["UF"].dropna().empty else "-"
                     cod_rep = df["CodRepresentante"].dropna().iloc[0] if not df["CodRepresentante"].dropna().empty else "-"
@@ -386,10 +351,32 @@ if btn_consultar:
                     else:
                         rep_formatado = nome_rep
 
-# Determina o conceito do cliente pela média de atraso
+                    # --- SEPARAÇÃO DAS BASES ---
+                    total_nfs = df["Titulo"].nunique()
+                    total_parcelas = len(df)
+                    
+                    df_pagos_em_dia = df[df["Status"] == "PAGO"].copy()
+                    df_pagos_atraso = df[df["Status"] == "PAGO EM ATRASO"].copy()
+                    df_atrasados = df[df["Status"] == "ATRASADO"].copy()
+                    df_pendentes_a_vencer = df[df["Status"] == "PENDENTE (A VENCER)"].copy()
+                    df_abertos_geral = df[df["Status"].isin(["PENDENTE (A VENCER)", "ATRASADO"])].copy()
+
+                    # --- ANÁLISE DE ATRASO HISTÓRICO (CALCULADO PRIMEIRO PARA O CABEÇALHO) ---
+                    maior_atraso_hist_dias = 0
+                    maior_atraso_hist_detalhe = "Nenhum atraso registrado"
+                    atraso_medio_historico = 0.0
+
+                    if not df_pagos_atraso.empty:
+                        atraso_medio_historico = float(df_pagos_atraso["DiasAtraso"].mean())
+                        top_hist = df_pagos_atraso.loc[df_pagos_atraso["DiasAtraso"].idxmax()]
+                        maior_atraso_hist_dias = int(top_hist["DiasAtraso"])
+                        dt_pgto_str = top_hist["DataPagamento"].strftime("%d/%m/%Y")
+                        maior_atraso_hist_detalhe = f"NF {top_hist['Titulo']}/{top_hist['Desdob']} (Pago em {dt_pgto_str})"
+
+                    # --- CLASSIFICAÇÃO / TIPO DE CLIENTE ---
                     conceito_cliente, cor_texto, cor_fundo = classificar_tipo_cliente(atraso_medio_historico)
 
-                    # Renderiza o cabeçalho com o Tipo de Cliente destacado à direita
+                    # --- CABEÇALHO DO CLIENTE COM A TAG À DIREITA ---
                     st.markdown(
                         f"""
                         <div style="
@@ -431,16 +418,6 @@ if btn_consultar:
                         unsafe_allow_html=True
                     )
 
-                    # --- SEPARAÇÃO DAS BASES ---
-                    total_nfs = df["Titulo"].nunique()
-                    total_parcelas = len(df)
-                    
-                    df_pagos_em_dia = df[df["Status"] == "PAGO"].copy()
-                    df_pagos_atraso = df[df["Status"] == "PAGO EM ATRASO"].copy()
-                    df_atrasados = df[df["Status"] == "ATRASADO"].copy()
-                    df_pendentes_a_vencer = df[df["Status"] == "PENDENTE (A VENCER)"].copy()
-                    df_abertos_geral = df[df["Status"].isin(["PENDENTE (A VENCER)", "ATRASADO"])].copy()
-
                     # --- ÚLTIMAS 5 NOTAS FISCAIS FATURADAS ---
                     df_ultimas_nfs = (
                         df.groupby("Titulo", as_index=False)
@@ -452,18 +429,6 @@ if btn_consultar:
                         .head(5)
                     )
 
-                    # --- ANÁLISE DE ATRASO HISTÓRICO (PAGOS EM ATRASO) ---
-                    maior_atraso_hist_dias = 0
-                    maior_atraso_hist_detalhe = "Nenhum atraso registrado"
-                    atraso_medio_historico = 0.0
-
-                    if not df_pagos_atraso.empty:
-                        atraso_medio_historico = df_pagos_atraso["DiasAtraso"].mean()
-                        top_hist = df_pagos_atraso.loc[df_pagos_atraso["DiasAtraso"].idxmax()]
-                        maior_atraso_hist_dias = int(top_hist["DiasAtraso"])
-                        dt_pgto_str = top_hist["DataPagamento"].strftime("%d/%m/%Y")
-                        maior_atraso_hist_detalhe = f"NF {top_hist['Titulo']}/{top_hist['Desdob']} (Pago em {dt_pgto_str})"
-
                     # --- ANÁLISE DE ATRASO ATUAL (PARCELAS ATRASADAS) ---
                     saldo_em_aberto = df_abertos_geral["Valor"].sum()
                     maior_atraso_atual_dias = 0
@@ -472,10 +437,8 @@ if btn_consultar:
                     detalhe_titulos_atraso = "Nenhum título em atraso"
 
                     if not df_atrasados.empty:
-                        # 1. Soma todos os títulos/parcelas vencidos
                         total_valor_atraso_atual = df_atrasados["Valor"].sum()
 
-                        # 2. Monta a lista com os títulos em atraso
                         lista_titulos = [
                             f"NF {int(row['Titulo'])}/{row['Desdob']}" 
                             for _, row in df_atrasados.iterrows()
@@ -486,7 +449,6 @@ if btn_consultar:
                         else:
                             detalhe_titulos_atraso = f"{', '.join(lista_titulos[:3])} e mais {len(lista_titulos) - 3} título(s)"
 
-                        # 3. Calcula os dias do maior atraso atual
                         df_atrasados["DiasVencido"] = (hoje - df_atrasados["Vencimento"]).dt.days
                         top_atual = df_atrasados.loc[df_atrasados["DiasVencido"].idxmax()]
                         maior_atraso_atual_dias = int(top_atual["DiasVencido"])
@@ -539,7 +501,6 @@ if btn_consultar:
 
                     st.divider()
 
-                    # Chamada atualizada desempacotando o valor e a data
                     pico_historico, dt_pico = calcular_pico_historico(df)
                     if dt_pico is not None and pd.notnull(dt_pico):
                         pico_hist_detalhe = f"Atingido em {pd.to_datetime(dt_pico).strftime('%d/%m/%Y')}"
@@ -564,9 +525,7 @@ if btn_consultar:
                         "Pico Histórico de Saldo", 
                         f"R$ {pico_historico:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                     )
-                    # Caso você use a legenda de referência do pico histórico:
-                    if "pico_hist_detalhe" in locals():
-                        c3.caption(f"📌 **Ref:** {pico_hist_detalhe}")
+                    c3.caption(f"📌 **Ref:** {pico_hist_detalhe}")
 
                     c4, c5, c6 = st.columns(3)
                     c4.metric(
@@ -584,7 +543,7 @@ if btn_consultar:
                     c5.caption(f"📌 **Ref:** {maior_atraso_hist_detalhe}")
 
                     c6.metric("Atraso Médio Histórico", f"{atraso_medio_historico:.1f} dias")
-                    c6.caption("📌 **Ref:** Média das parcelas quitadas fora do prazo")
+                    c6.caption(f"📌 **Tipo:** {conceito_cliente} (Média das parcelas quitadas fora do prazo)")
 
                     st.divider()
 
@@ -598,7 +557,6 @@ if btn_consultar:
                     if df_filtrado.empty:
                         st.info(f"Nenhum título encontrado com status '{filtro_status}'.")
                     else:
-                        # Colunas base do DataFrame
                         colunas_grid = [
                             "Titulo", "Desdob", "Emissao", "Valor", 
                             "Vencimento", "DataPagamento", "ValorRecebido", 
@@ -611,7 +569,6 @@ if btn_consultar:
                         df_view["ValorRecebido"] = pd.to_numeric(df_view["ValorRecebido"], errors="coerce").fillna(0.0)
                         df_view["ValorJuros"] = pd.to_numeric(df_view["ValorJuros"], errors="coerce").fillna(0.0)
 
-                        # Montagem da estrutura de exibição mantendo ordenação correta
                         df_display = pd.DataFrame({
                             "Titulo": df_view["Titulo"],
                             "Desdob": df_view["Desdob"],
@@ -671,6 +628,7 @@ if btn_consultar:
                         df_resumo = pd.DataFrame([{
                             "Codigo_Cliente": int(cliente_input),
                             "Nome_Cliente": nome_cliente,
+                            "Tipo_Conceito": conceito_cliente,
                             "UF": uf_cliente,
                             "Representante": rep_formatado,
                             "Limite_Credito": limite_credito,
@@ -702,13 +660,3 @@ if btn_consultar:
 
             except Exception as e:
                 st.error(f"Erro ao processar análise financeira: {e}")
-                # --- CONTEÚDO PRINCIPAL ---
-if btn_consultar:
-    if not cliente_input:
-        st.warning("⚠️ Por favor, informe o Código do Cliente para realizar a consulta.")
-    else:
-        # [SEU CÓDIGO ATUAL DE CONSULTA DO CLIENTE CONTINUA AQUI SEM NENHUMA ALTERAÇÃO]
-        pass
-else:
-    # Se o botão não foi clicado, exibe o módulo isolado da tela inicial
-    renderizar_dashboard(get_connection)
