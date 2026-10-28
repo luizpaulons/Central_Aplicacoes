@@ -1,10 +1,10 @@
 import streamlit as st
 
-st.set_page_config(
-    page_title="Central PCP - Gestão de Solados e EVA",
-    page_icon="🏭",
-    layout="wide"
-)
+#st.set_page_config(
+#    page_title="Central PCP - Gestão de Solados e EVA",
+#    page_icon="🏭",
+#    layout="wide"
+#)
 
 st.title("🏭 Central PCP - Gestão de Solados e EVA")
 st.markdown("---")
