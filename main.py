@@ -6,7 +6,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 1. PÁGINA INICIAL DA CENTRAL (Assume o http://localhost:8501/) ---
+# --- 1. PÁGINA INICIAL DA CENTRAL ---
 def home():
     st.title("🏢 Central de Aplicações")
     st.markdown("Selecione uma das ferramentas no menu superior para começar:")
@@ -30,16 +30,29 @@ paginas_financeiro = [
         "financeiro/Consulta_Cliente.py",
         title="Consulta Cliente",
         icon="📊",
-        url_path="consulta-cliente"  # http://localhost:8501/consulta-cliente
+        url_path="consulta-cliente"
     )
 ]
 
+# Rotas individuais do PCP apontando para os novos arquivos da pasta pages/
 paginas_pcp = [
     st.Page(
-        "pcp/Estatistica_Modelos.py",
-        title="Estatística de Modelos",
-        icon="🏭",
-        url_path="estatistica-modelos"  # http://localhost:8501/estatistica-modelos
+        "pages/1_📝_De_Para.py",
+        title="Vínculo De-Para",
+        icon="📝",
+        url_path="pcp-de-para"
+    ),
+    st.Page(
+        "pages/2_⚙️_Cadastro_Solados_Cores.py",
+        title="Cadastro de Solados e Cores",
+        icon="⚙️",
+        url_path="pcp-cadastros"
+    ),
+    st.Page(
+        "pages/3_📑_Importar_Relatorio.py",
+        title="Importar Relatório CHB",
+        icon="📑",
+        url_path="pcp-relatorios"
     )
 ]
 
