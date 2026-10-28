@@ -3,7 +3,7 @@ import pandas as pd
 from utils.database import buscar_cores_pc10t
 from utils.storage import carregar_cadastros_base, salvar_cadastros_base, carregar_de_para
 
-st.set_page_config(page_title="Cadastro de Solados e Cores", layout="wide")
+#st.set_page_config(page_title="Cadastro de Solados e Cores", layout="wide")
 st.title("⚙️ Cadastro Oficial de Solados e Cores de EVA")
 st.info("Cadastre os itens oficiais ou marque na grid para excluir. Itens em uso no De-Para não podem ser excluídos.")
 

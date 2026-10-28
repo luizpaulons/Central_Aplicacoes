@@ -3,7 +3,7 @@ import pandas as pd
 from utils.storage import carregar_de_para
 from utils.relatorios import gerar_pdf_relatorio
 
-st.set_page_config(page_title="Relatório CHB", layout="wide")
+#st.set_page_config(page_title="Relatório CHB", layout="wide")
 st.title("📑 Importar Excel e Gerar Relatório CHB")
 
 arquivo_excel = st.file_uploader("Selecione o arquivo Excel do ERP CHB (.xlsx):", type=["xlsx", "xls"])

@@ -3,7 +3,7 @@ import pandas as pd
 from utils.database import buscar_dados_base_sql
 from utils.storage import carregar_cadastros_base, carregar_de_para, salvar_de_para
 
-st.set_page_config(page_title="Vínculo De-Para", layout="wide")
+#st.set_page_config(page_title="Vínculo De-Para", layout="wide")
 st.title("📝 Vínculo De-Para: Modelo e Cor x Solado e Cor do EVA")
 
 cadastros_base = carregar_cadastros_base()
