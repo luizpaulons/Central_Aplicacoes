@@ -38,7 +38,7 @@ paginas_financeiro = [
 # Aponta exatamente para o arquivo existente na pasta pcp/
 paginas_pcp = [
     st.Page(
-        "pcp/estatistica_modelo/Estatistica_Modelos.py",
+        "pcp/estatistica_modelos/Estatistica_Modelos.py",
         title="Estatística de Modelos",
         icon="🏭",
         url_path="pcp-estatistica"

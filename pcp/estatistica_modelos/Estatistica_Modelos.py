@@ -8,7 +8,7 @@ import streamlit as st
 # ==========================================================
 diretorio_projeto = Path(__file__).resolve().parent
 
-# Adiciona /app/pcp/estatistica_modelo ao sys.path para localizar "import utils"
+# Adiciona /app/pcp/estatistica_modelos ao sys.path para localizar "import utils"
 caminho_str = str(diretorio_projeto)
 if caminho_str not in sys.path:
     sys.path.insert(0, caminho_str)
@@ -45,7 +45,7 @@ def carregar_script(nomes_possiveis):
         caminhos_diretos = [
             pasta_pages / nome,
             diretorio_projeto / nome,
-            Path("/app/pcp/estatistica_modelo/pages") / nome
+            Path("/app/pcp/estatistica_modelos/pages") / nome
         ]
         for c in caminhos_diretos:
             if c.is_file():
