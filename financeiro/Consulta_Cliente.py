@@ -89,6 +89,32 @@ def calcular_dias_atraso_real(dt_venc, dt_pgto):
     
     return dias_corridos
 
+def classificar_tipo_cliente(media_atraso):
+    """
+    Classifica o tipo/conceito do cliente de acordo com a média de atraso em dias:
+    - 0 dia = AA
+    - 1 a 6 dias = A
+    - 7 a 15 dias = AB
+    - 16 a 30 dias = B
+    - 31 a 45 dias = C
+    - 46 a 60 dias = D
+    - Acima de 61 dias = E
+    """
+    if media_atraso <= 0:
+        return "AA", "#198754", "#d1e7dd"  # Verde escuro / fundo claro
+    elif media_atraso <= 6:
+        return "A", "#0d6efd", "#cfe2ff"   # Azul
+    elif media_atraso <= 15:
+        return "AB", "#0dcaf0", "#cff4fc"  # Ciano/Turquesa
+    elif media_atraso <= 30:
+        return "B", "#ffc107", "#fff3cd"   # Amarelo/Atenção
+    elif media_atraso <= 45:
+        return "C", "#fd7e14", "#ffe5d0"   # Laranja
+    elif media_atraso <= 60:
+        return "D", "#dc3545", "#f8d7da"   # Vermelho
+    else:
+        return "E", "#842029", "#f5c2c7"   # Vinho/Crítico
+
 def consultar_titulos(cod_cliente: int, num_titulo: int = None, 
                       dt_emis_ini: date = None, dt_emis_fim: date = None,
                       dt_venc_ini: date = None, dt_venc_fim: date = None):
@@ -360,14 +386,46 @@ if btn_consultar:
                     else:
                         rep_formatado = nome_rep
 
-                    # Renderiza o cabeçalho de identificação
+# Determina o conceito do cliente pela média de atraso
+                    conceito_cliente, cor_texto, cor_fundo = classificar_tipo_cliente(atraso_medio_historico)
+
+                    # Renderiza o cabeçalho com o Tipo de Cliente destacado à direita
                     st.markdown(
                         f"""
-                        <div style="background-color: #f1f3f5; padding: 16px 20px; border-radius: 8px; border-left: 5px solid #0d6efd; margin-bottom: 20px;">
-                            <h3 style="margin: 0; color: #212529;">👤 {int(cliente_input)} - {nome_cliente} ({uf_cliente})</h3>
-                            <p style="margin: 5px 0 0 0; color: #495057; font-size: 15px;">
-                                <strong>Representante:</strong> {rep_formatado}
-                            </p>
+                        <div style="
+                            background-color: #f1f3f5; 
+                            padding: 16px 20px; 
+                            border-radius: 8px; 
+                            border-left: 5px solid #0d6efd; 
+                            margin-bottom: 20px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        ">
+                            <div>
+                                <h3 style="margin: 0; color: #212529;">👤 {int(cliente_input)} - {nome_cliente} ({uf_cliente})</h3>
+                                <p style="margin: 5px 0 0 0; color: #495057; font-size: 15px;">
+                                    <strong>Representante:</strong> {rep_formatado}
+                                </p>
+                            </div>
+                            <div style="
+                                background-color: {cor_fundo};
+                                border: 1.5px solid {cor_texto};
+                                border-radius: 8px;
+                                padding: 6px 16px;
+                                text-align: center;
+                                min-width: 110px;
+                            ">
+                                <div style="font-size: 11px; font-weight: 600; color: {cor_texto}; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    Tipo / Conceito
+                                </div>
+                                <div style="font-size: 22px; font-weight: 800; color: {cor_texto}; line-height: 1.1;">
+                                    {conceito_cliente}
+                                </div>
+                                <div style="font-size: 10px; color: #6c757d; margin-top: 2px;">
+                                    Méd. {atraso_medio_historico:.1f} d
+                                </div>
+                            </div>
                         </div>
                         """,
                         unsafe_allow_html=True
