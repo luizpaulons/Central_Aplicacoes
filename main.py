@@ -37,19 +37,19 @@ paginas_financeiro = [
 # Rotas individuais do PCP apontando para os novos arquivos da pasta pages/
 paginas_pcp = [
     st.Page(
-        "pcp/pages/de-para.py",
+        "pages/de-para.py",
         title="Vínculo De-Para",
         icon="📝",
         url_path="pcp-de-para"
     ),
     st.Page(
-        "pcp/pages/cadastro_solados.py",
+        "pages/cadastro_solados.py",
         title="Cadastro de Solados e Cores",
         icon="⚙️",
         url_path="pcp-cadastros"
     ),
     st.Page(
-        "pcp/pages/importador.py",
+        "pages/importador.py",
         title="Importar Relatório CHB",
         icon="📑",
         url_path="pcp-relatorios"
