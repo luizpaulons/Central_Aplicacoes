@@ -38,7 +38,7 @@ paginas_financeiro = [
 # Ao clicar em "Estatística de Modelos" no menu superior, chama a página inicial do PCP
 paginas_pcp = [
     st.Page(
-        "Estatistica_Modelos.py",  # Se o arquivo estiver em pages/
+        "pcp/Estatistica_Modelos.py",  # Se o arquivo estiver em pages/
         title="Estatística de Modelos",
         icon="📈",
         url_path="estatistica-modelos"
