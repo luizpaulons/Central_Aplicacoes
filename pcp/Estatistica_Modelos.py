@@ -18,3 +18,31 @@ Utilize o menu na **barra lateral esquerda** para navegar pelas telas do sistema
 2. **⚙️ Cadastro de Solados e Cores**: Cadastre novos solados e consulte as cores oficiais diretamente da tabela `PC10T`.
 3. **📑 Importar Excel e Gerar Relatório**: Carregue o arquivo `.xlsx` do ERP CHB para gerar os relatórios consolidados em PDF e Excel.
 """)
+
+# ==========================================================
+# MENU LATERAL ESQUERDO DO PCP
+# ==========================================================
+#st.sidebar.title("🏭 Módulo PCP")
+#st.sidebar.markdown("---")
+
+menu_selecionado = st.sidebar.radio(
+    "Navegação Interna:",
+    [
+        "📝 De-Para",
+        "⚙️ Cadastro de Solados e Cores",
+        "📑 Importar Excel e Gerar Relatório"
+    ]
+)
+st.sidebar.markdown("---")
+
+if menu_selecionado == "📝 De-Para":
+    # (Código da tela de De-Para com SQL Server)
+    ...
+
+elif menu_selecionado == "⚙️ Cadastro de Solados e Cores":
+    # (Código da tela com consulta da tabela PC10T)
+    ...
+
+elif menu_selecionado == "📑 Importar Excel e Gerar Relatório":
+    # (Código de processamento do Excel e geração do PDF/Excel)
+    ...

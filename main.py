@@ -34,29 +34,17 @@ paginas_financeiro = [
     )
 ]
 
-# Rotas individuais do PCP apontando para os novos arquivos da pasta pages/
+# Ao clicar em PCP no topo, carrega diretamente o arquivo Estatistica_Modelos.py
 paginas_pcp = [
     st.Page(
-        "pages/de-para.py",
-        title="Vínculo De-Para",
-        icon="📝",
-        url_path="pcp-de-para"
-    ),
-    st.Page(
-        "pages/cadastro_solados.py",
-        title="Cadastro de Solados e Cores",
-        icon="⚙️",
-        url_path="pcp-cadastros"
-    ),
-    st.Page(
-        "pages/importador.py",
-        title="Importar Relatório CHB",
-        icon="📑",
-        url_path="pcp-relatorios"
+        "pcp/Estatistica_Modelos.py",
+        title="Estatística de Modelos",
+        icon="🏭",
+        url_path="pcp-estatistica"
     )
 ]
 
-# --- 3. AGRUPAMENTO DOS MENUS ---
+# --- 3. AGRUPAMENTO DOS MENUS SUPERIORES ---
 rotas = {
     "Central": [pagina_home],
     "Financeiro": paginas_financeiro,
