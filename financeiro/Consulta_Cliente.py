@@ -1,3 +1,4 @@
+from financeiro.dashboard_geral import renderizar_dashboard
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -20,7 +21,7 @@ def get_connection():
             "host": "localhost",
             "port": 1433,
             "database": "CHB",
-            "username": "sa",
+            "username": "",
             "password": "",
             "driver": "SQL Server",
         }
@@ -374,42 +375,40 @@ if btn_consultar:
                         maior_atraso_hist_detalhe = f"NF {top_hist['Titulo']}/{top_hist['Desdob']} (Pago em {dt_pgto_str})"
 
                     # --- CLASSIFICAÇÃO / TIPO DE CLIENTE ---
-                    conceito_cliente, cor_texto, cor_fundo = classificar_tipo_cliente(atraso_medio_historico)
+                    letra_cliente, cor_texto, cor_fundo = classificar_tipo_cliente(atraso_medio_historico)
 
-                    # --- CABEÇALHO DO CLIENTE COM A TAG À DIREITA ---
+                    # --- CABEÇALHO DO CLIENTE: SOMENTE A LETRA EM DESTAQUE E A MÉDIA ---
                     st.markdown(
                         f"""
                         <div style="
-                            background-color: #f1f3f5; 
-                            padding: 16px 20px; 
-                            border-radius: 8px; 
-                            border-left: 5px solid #0d6efd; 
-                            margin-bottom: 20px;
+                            background-color: #f8f9fa; 
+                            padding: 16px 22px; 
+                            border-radius: 10px; 
+                            border-left: 6px solid #0d6efd; 
+                            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+                            margin-bottom: 12px;
                             display: flex;
                             justify-content: space-between;
                             align-items: center;
                         ">
                             <div>
-                                <h3 style="margin: 0; color: #212529;">👤 {int(cliente_input)} - {nome_cliente} ({uf_cliente})</h3>
-                                <p style="margin: 5px 0 0 0; color: #495057; font-size: 15px;">
+                                <h3 style="margin: 0; color: #212529; font-weight: 700;">👤 {int(cliente_input)} - {nome_cliente} ({uf_cliente})</h3>
+                                <p style="margin: 6px 0 0 0; color: #495057; font-size: 15px;">
                                     <strong>Representante:</strong> {rep_formatado}
                                 </p>
                             </div>
                             <div style="
                                 background-color: {cor_fundo};
-                                border: 1.5px solid {cor_texto};
-                                border-radius: 8px;
-                                padding: 6px 16px;
+                                border: 2px solid {cor_texto};
+                                border-radius: 10px;
+                                padding: 8px 24px;
                                 text-align: center;
-                                min-width: 110px;
+                                min-width: 120px;
                             ">
-                                <div style="font-size: 11px; font-weight: 600; color: {cor_texto}; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    Tipo / Conceito
+                                <div style="font-size: 34px; font-weight: 900; color: {cor_texto}; line-height: 1.0;">
+                                    {letra_cliente}
                                 </div>
-                                <div style="font-size: 22px; font-weight: 800; color: {cor_texto}; line-height: 1.1;">
-                                    {conceito_cliente}
-                                </div>
-                                <div style="font-size: 10px; color: #6c757d; margin-top: 2px;">
+                                <div style="font-size: 12px; font-weight: 600; color: {cor_texto}; margin-top: 4px;">
                                     Méd. {atraso_medio_historico:.1f} d
                                 </div>
                             </div>
@@ -417,6 +416,27 @@ if btn_consultar:
                         """,
                         unsafe_allow_html=True
                     )
+
+                    # --- LEGENDA DAS LETRAS DE CLASSIFICAÇÃO ---
+                    with st.expander("ℹ️ Entenda a Classificação por Letras (Média de Dias de Atraso)", expanded=False):
+                        st.markdown(
+                            """
+                            A classificação do cliente é calculada automaticamente a partir da **média histórica de dias de atraso** das parcelas já quitadas:
+                            
+                            | Conceito | Faixa de Atraso Médio | Nível de Pontualidade |
+                            | :---: | :---: | :--- |
+                            | <span style="color:#198754; font-weight:bold; font-size:16px;">AA</span> | **0 dia** | **Excelente:** Pagamentos pontuais ou antecipados. |
+                            | <span style="color:#0d6efd; font-weight:bold; font-size:16px;">A</span> | **1 a 6 dias** | **Ótimo:** Oscilação normal de liquidação bancária. |
+                            | <span style="color:#0dcaf0; font-weight:bold; font-size:16px;">AB</span> | **7 a 15 dias** | **Bom:** Atrasos pontuais toleráveis. |
+                            | <span style="color:#ffc107; font-weight:bold; font-size:16px;">B</span> | **16 a 30 dias** | **Atenção:** Requer acompanhamento nas cobranças. |
+                            | <span style="color:#fd7e14; font-weight:bold; font-size:16px;">C</span> | **31 a 45 dias** | **Risco Moderado:** Atraso constante em compras parceladas. |
+                            | <span style="color:#dc3545; font-weight:bold; font-size:16px;">D</span> | **46 a 60 dias** | **Risco Alto:** Necessário bloqueio/reavaliação de crédito. |
+                            | <span style="color:#842029; font-weight:bold; font-size:16px;">E</span> | **Acima de 61 dias** | **Crítico:** Carteira de alto risco ou cobrança judicial. |
+                            
+                            *Obs: Pagamentos com vencimento em finais de semana (sábado/domingo) quitados na segunda-feira subsequente não computam dias de atraso.*
+                            """,
+                            unsafe_allow_html=True
+                        )
 
                     # --- ÚLTIMAS 5 NOTAS FISCAIS FATURADAS ---
                     df_ultimas_nfs = (
@@ -543,7 +563,7 @@ if btn_consultar:
                     c5.caption(f"📌 **Ref:** {maior_atraso_hist_detalhe}")
 
                     c6.metric("Atraso Médio Histórico", f"{atraso_medio_historico:.1f} dias")
-                    c6.caption(f"📌 **Tipo:** {conceito_cliente} (Média das parcelas quitadas fora do prazo)")
+                    c6.caption(f"📌 **Classificação:** {letra_cliente} (Média das parcelas quitadas fora do prazo)")
 
                     st.divider()
 
@@ -628,7 +648,7 @@ if btn_consultar:
                         df_resumo = pd.DataFrame([{
                             "Codigo_Cliente": int(cliente_input),
                             "Nome_Cliente": nome_cliente,
-                            "Tipo_Conceito": conceito_cliente,
+                            "Classificacao": letra_cliente,
                             "UF": uf_cliente,
                             "Representante": rep_formatado,
                             "Limite_Credito": limite_credito,
@@ -660,3 +680,6 @@ if btn_consultar:
 
             except Exception as e:
                 st.error(f"Erro ao processar análise financeira: {e}")
+else:
+    # Quando o usuário ainda não consultou um cliente, renderiza o dashboard geral
+    renderizar_dashboard(get_connection)
