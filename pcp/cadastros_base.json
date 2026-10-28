@@ -1,0 +1,163 @@
+{
+  "solados": [
+    "ACELERA",
+    "DRIFT",
+    "FAST",
+    "GRAVITY",
+    "GRID",
+    "KURVE",
+    "NEBULA KIDS",
+    "NEO",
+    "SKY",
+    "SKY KIDS",
+    "SOLARYS",
+    "WILSON",
+    "WILSON RXT"
+  ],
+  "cores_eva": [
+    {
+    "codigo": "562",
+    "cor": "AREIA"
+  },
+  {
+    "codigo": "517",
+    "cor": "AZUL ROYAL"
+  },
+  {
+    "codigo": "125",
+    "cor": "BEGE"
+  },
+  {
+    "codigo": "588",
+    "cor": "BRANCO"
+  },
+  {
+    "codigo": "585",
+    "cor": "CHUMBO"
+  },
+  {
+    "codigo": "2038",
+    "cor": "CHUMBO/PRETO"
+  },
+  {
+    "codigo": "991",
+    "cor": "CINZA"
+  },
+  {
+    "codigo": "1217",
+    "cor": "INFINITE"
+  },
+  {
+    "codigo": "1226",
+    "cor": "VERDE ABACATE"
+  },
+  {
+    "codigo": "1248",
+    "cor": "MARROM CLARO"
+  },
+  {
+    "codigo": "2187",
+    "cor": "LARANJA FLUOR"
+  },
+  {
+    "codigo": "2219",
+    "cor": "VERDE FLUOR"
+  },
+  {
+    "codigo": "2232",
+    "cor": "SALMAO"
+  },
+  {
+    "codigo": "2236",
+    "cor": "VERDE AGUA"
+  },
+  {
+    "codigo": "2237",
+    "cor": "BEGE CLARO"
+  },
+  {
+    "codigo": "2238",
+    "cor": "CORAL FLUOR"
+  },
+  {
+    "codigo": "2241",
+    "cor": "BRANCO TRANSP"
+  },
+  {
+    "codigo": "2242",
+    "cor": "GELO MEDDLE"
+  },
+  {
+    "codigo": "2243",
+    "cor": "PRETO MEDDLE"
+  },
+  {
+    "codigo": "2419",
+    "cor": "BEGE CLARO/ROSA/CORAL"
+  },
+  {
+    "codigo": "2420",
+    "cor": "ROSA/ROSA CHICLETE/AMARELO"
+  },
+  {
+    "codigo": "2421",
+    "cor": "PRETO/UVA"
+  },
+  {
+    "codigo": "2422",
+    "cor": "CELESTE/PTO/VERDE FLUOR"
+  },
+  {
+    "codigo": "2423",
+    "cor": "LARANJA/LARANJA CLARO/PTO"
+  },
+  {
+    "codigo": "2424",
+    "cor": "BRANCO T3"
+  },
+  {
+    "codigo": "2436",
+    "cor": "LILAS CLARO"
+  },
+  {
+    "codigo": "2437",
+    "cor": "VERDE LIMAO"
+  },
+  {
+    "codigo": "2438",
+    "cor": "SALMAO ESCURO"
+  },
+  {
+    "codigo": "277",
+    "cor": "AZUL CLARO"
+  },
+  {
+    "codigo": "578",
+    "cor": "GELO"
+  },
+  {
+    "codigo": "684",
+    "cor": "LARANJA"
+  },
+  {
+    "codigo": "642",
+    "cor": "MARINHO"
+  },
+  {
+    "codigo": "2064",
+    "cor": "PINK"
+  },
+  {
+    "codigo": "545",
+    "cor": "PRETO"
+  },
+  {
+    "codigo": "53",
+    "cor": "ROSA CLARO"
+  },
+  {
+    "codigo": "544",
+    "cor": "VERMELHO"
+  }
+]
+}

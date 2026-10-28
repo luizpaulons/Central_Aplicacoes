@@ -1,0 +1,7 @@
+streamlit
+pandas
+numpy
+pyodbc
+openpyxl
+reportlab
+python-dateutil
