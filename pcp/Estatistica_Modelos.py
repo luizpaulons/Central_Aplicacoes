@@ -26,19 +26,26 @@ ARQUIVO_CADASTROS = "cadastros_base.json"
 def buscar_dados_base_sql():
     sec = st.secrets["sql_server_CHB"]
     
-    # Se configurado via 'url' no secrets.toml:
+    # 1. Se configurado via 'url':
     if "url" in sec and sec["url"]:
         conn_str = sec["url"]
-    # Se configurado por campos separados:
+    # 2. Se configurado por parâmetros separados:
     else:
         host = sec.get("host") or sec.get("server", "")
         port = sec.get("port", 1433)
-        database = sec.get("database", "CHB")
+        database = sec.get("database", "")
         username = sec.get("username", "")
         password = urllib.parse.quote_plus(str(sec.get("password", "")))
         
-        # Conecta diretamente com o driver 'SQL Server' que está na sua máquina
-        conn_str = f"mssql+pyodbc://{username}:{password}@{host}:{port}/{database}?driver=SQL+Server"
+        # Garante que pega apenas o nome limpo do driver
+        driver = sec.get("odbc_driver") or sec.get("driver", "ODBC Driver 18 for SQL Server")
+        driver = driver.replace("driver=", "").strip()
+        driver_encoded = urllib.parse.quote_plus(driver)
+        
+        conn_str = (
+            f"mssql+pyodbc://{username}:{password}@{host}:{port}/{database}"
+            f"?driver={driver_encoded}&TrustServerCertificate=yes"
+        )
     
     engine = create_engine(conn_str)
     
@@ -55,8 +62,6 @@ def buscar_dados_base_sql():
           AND A.PC13AnoPed = 0
           AND A.PC13CodPed = 0
           AND C.PC03Codigo > 660
-          AND A.PC13DatCri > '2022-01-01'
-          AND C.PC03Codigo NOT IN (9990)
         GROUP BY C.PC03Codigo, C.PC03Descr, B.PC10Codigo, B.PC10Descr
         ORDER BY C.PC03Codigo, B.PC10Codigo
     """
