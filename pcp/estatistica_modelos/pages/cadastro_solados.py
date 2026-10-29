@@ -1,81 +1,94 @@
-import streamlit as st
+import os
+import json
 import pandas as pd
-from utils.database import buscar_cores_pc10t
-from utils.storage import carregar_cadastros_base, salvar_cadastros_base, carregar_de_para
+import streamlit as st
+import urllib.parse
+import pyodbc
+from sqlalchemy import create_engine
 
+ARQUIVO_DE_PARA = "de_para_solados_eva.csv"
+ARQUIVO_CADASTROS = "cadastros_base.json"
+
+st.set_page_config(page_title="Cadastro de Solados e Cores", layout="wide")
 st.title("⚙️ Cadastro Oficial de Solados e Cores de EVA")
 st.info("Cadastre os itens oficiais ou marque na grid para excluir. Itens em uso no De-Para não podem ser excluídos.")
 
+# ==========================================================
+# CONEXÃO COM BANCO E CONSULTAS
+# ==========================================================
+def obter_driver_compativel():
+    drivers_instalados = pyodbc.drivers()
+    preferencias = ["ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server", "SQL Server"]
+    for d in preferencias:
+        if d in drivers_instalados:
+            return d
+    return "SQL Server"
+
+def criar_engine_sql():
+    sec = st.secrets["sql_server_CHB"]
+    if "url" in sec and sec["url"]:
+        return create_engine(sec["url"])
+    host = sec.get("host") or sec.get("server", "")
+    port = sec.get("port", 1433)
+    database = sec.get("database", "CHB")
+    username = sec.get("username", "")
+    password = urllib.parse.quote_plus(str(sec.get("password", "")))
+    driver_real = obter_driver_compativel()
+    driver_codificado = urllib.parse.quote_plus(driver_real)
+    flags = "&TrustServerCertificate=yes" if "ODBC Driver" in driver_real else ""
+    conn_str = f"mssql+pyodbc://{username}:{password}@{host}:{port}/{database}?driver={driver_codificado}{flags}"
+    return create_engine(conn_str)
+
+@st.cache_data(ttl=600)
+def buscar_cores_pc10t():
+    engine = criar_engine_sql()
+    query = "SELECT PC10Codigo, PC10Descr FROM PC10T ORDER BY PC10Codigo"
+    with engine.connect() as conexao:
+        df = pd.read_sql_query(query, con=conexao)
+    df["PC10Codigo"] = df["PC10Codigo"].astype(str).str.strip()
+    df["PC10Descr"] = df["PC10Descr"].astype(str).str.strip()
+    return df
+
+# ==========================================================
+# CARREGAMENTO DE ARQUIVOS
+# ==========================================================
+def carregar_cadastros_base():
+    if os.path.exists(ARQUIVO_CADASTROS):
+        with open(ARQUIVO_CADASTROS, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+            dados.setdefault("solados", [])
+            dados.setdefault("cores_eva", [])
+            return dados
+    return {"solados": [], "cores_eva": []}
+
+def salvar_cadastros_base(cadastros):
+    with open(ARQUIVO_CADASTROS, "w", encoding="utf-8") as f:
+        json.dump(cadastros, f, ensure_ascii=False, indent=2)
+
+def carregar_de_para():
+    if os.path.exists(ARQUIVO_DE_PARA):
+        return pd.read_csv(ARQUIVO_DE_PARA, dtype=str)
+    return pd.DataFrame(columns=["linha", "modelo", "cor", "descricao_cor", "nome_solado", "cor_eva"])
+
 cadastros_base = carregar_cadastros_base()
 df_de_para_atual = carregar_de_para()
+
 solados_em_uso = set(df_de_para_atual["nome_solado"].dropna().astype(str).str.strip().str.upper()) if not df_de_para_atual.empty else set()
 cores_em_uso = set(df_de_para_atual["cor_eva"].dropna().astype(str).str.strip().str.upper()) if not df_de_para_atual.empty else set()
 
-# Callback para solado
-def callback_adicionar_solado():
-    sol = st.session_state.get("input_novo_solado", "").strip().upper()
-    if sol:
-        if sol not in cadastros_base["solados"]:
-            cadastros_base["solados"].append(sol)
-            cadastros_base["solados"].sort()
-            salvar_cadastros_base(cadastros_base)
-            st.session_state["msg_solado"] = ("sucesso", f"Solado '{sol}' cadastrado!")
-        else:
-            st.session_state["msg_solado"] = ("aviso", "Este solado já existe.")
+# Inicializa chaves de input no session_state se não existirem
+if "input_novo_solado" not in st.session_state:
     st.session_state["input_novo_solado"] = ""
-
-# Callback para cor com limpeza de texto e código numérico
-def callback_adicionar_cor(mapa_pc10):
-    cod_raw = st.session_state.get("input_cod_cor", "").strip()
-    if cod_raw:
-        try:
-            cod_num = int(cod_raw)
-        except ValueError:
-            st.session_state["msg_cor"] = ("aviso", "O código da cor deve ser numérico.")
-            st.session_state["input_cod_cor"] = ""
-            return
-
-        cod_str = str(cod_num)
-        desc_encontrada = mapa_pc10.get(cod_str, "").strip().upper()
-
-        if not desc_encontrada:
-            st.session_state["msg_cor"] = ("aviso", f"Código {cod_str} não encontrado na PC10T.")
-        else:
-            # Lista de códigos existentes como inteiros para validação
-            codigos_existentes = []
-            for item in cadastros_base.get("cores_eva", []):
-                try:
-                    codigos_existentes.append(int(item.get("codigo", -1)))
-                except (ValueError, TypeError):
-                    pass
-
-            if cod_num in codigos_existentes:
-                st.session_state["msg_cor"] = ("aviso", f"O código {cod_str} já está cadastrado.")
-            else:
-                cadastros_base["cores_eva"].append({
-                    "codigo": cod_num,
-                    "cor": desc_encontrada
-                })
-                # Ordena a lista sempre numericamente
-                cadastros_base["cores_eva"] = sorted(
-                    cadastros_base["cores_eva"], 
-                    key=lambda x: int(x.get("codigo", 0)) if str(x.get("codigo", "")).isdigit() else 999999
-                )
-                salvar_cadastros_base(cadastros_base)
-                st.session_state["msg_cor"] = ("sucesso", f"Cor '{cod_str} - {desc_encontrada}' cadastrada!")
-
-    # Limpa o campo para a próxima digitação
+if "input_cod_cor" not in st.session_state:
     st.session_state["input_cod_cor"] = ""
 
 col_cad1, col_cad2 = st.columns(2)
 
+# ==========================================================
 # 1. SOLADOS
+# ==========================================================
 with col_cad1:
     st.markdown("### 👟 Solados")
-    if "msg_solado" in st.session_state:
-        tipo, texto = st.session_state.pop("msg_solado")
-        if tipo == "sucesso": st.success(texto)
-        elif tipo == "aviso": st.warning(texto)
 
     col_add_s1, col_add_s2 = st.columns([3, 1])
     with col_add_s1:
@@ -83,13 +96,28 @@ with col_cad1:
     with col_add_s2:
         st.write("")
         st.write("")
-        st.button("➕ Adicionar", key="btn_add_solado", on_click=callback_adicionar_solado)
+        if st.button("➕ Adicionar", key="btn_add_solado"):
+            sol = st.session_state.get("input_novo_solado", "").strip().upper()
+            if not sol:
+                st.warning("Digite o nome do solado.")
+            elif sol in cadastros_base["solados"]:
+                st.warning("Este solado já existe.")
+            else:
+                cadastros_base["solados"].append(sol)
+                cadastros_base["solados"].sort()
+                salvar_cadastros_base(cadastros_base)
+                st.toast(f"Solado '{sol}' cadastrado com sucesso!", icon="✅")
+                st.session_state["input_novo_solado"] = ""
+                st.rerun()
 
     lista_solados = cadastros_base.get("solados", [])
     df_grid_sol = pd.DataFrame({
         "SELECIONAR": [False] * len(lista_solados),
         "NOME DO SOLADO": lista_solados
     }) if lista_solados else pd.DataFrame(columns=["SELECIONAR", "NOME DO SOLADO"])
+    
+    df_grid_sol["SELECIONAR"] = df_grid_sol["SELECIONAR"].astype(bool)
+    df_grid_sol["NOME DO SOLADO"] = df_grid_sol["NOME DO SOLADO"].astype(str)
 
     grid_sol_editada = st.data_editor(
         df_grid_sol,
@@ -114,10 +142,12 @@ with col_cad1:
             if permitidos:
                 cadastros_base["solados"] = [s for s in cadastros_base["solados"] if s not in permitidos]
                 salvar_cadastros_base(cadastros_base)
-                st.success(f"Solado(s) removido(s): {', '.join(permitidos)}")
+                st.toast("Solado(s) removido(s) com sucesso!", icon="🗑️")
                 st.rerun()
 
+# ==========================================================
 # 2. CORES DE EVA (BUSCA NA PC10T)
+# ==========================================================
 with col_cad2:
     st.markdown("### 🎨 Cores de EVA")
     try:
@@ -126,11 +156,6 @@ with col_cad2:
     except Exception as e:
         st.error(f"Erro ao carregar PC10T: {e}")
         mapa_pc10 = {}
-
-    if "msg_cor" in st.session_state:
-        tipo, texto = st.session_state.pop("msg_cor")
-        if tipo == "sucesso": st.success(texto)
-        elif tipo == "aviso": st.warning(texto)
 
     col_add_c1, col_add_c2 = st.columns([3, 1])
     with col_add_c1:
@@ -146,9 +171,46 @@ with col_cad2:
     with col_add_c2:
         st.write("")
         st.write("")
-        st.button("➕ Adicionar", key="btn_add_cor", on_click=callback_adicionar_cor, args=(mapa_pc10,))
+        if st.button("➕ Adicionar", key="btn_add_cor"):
+            cod_raw = st.session_state.get("input_cod_cor", "").strip()
+            if not cod_raw:
+                st.warning("Digite o código da cor.")
+            else:
+                try:
+                    cod_num = int(cod_raw)
+                except ValueError:
+                    st.warning("O código da cor deve ser numérico.")
+                    st.stop()
 
-    # Grid com Código Numérico (int) para ordenação correta
+                cod_str = str(cod_num)
+                desc_encontrada = mapa_pc10.get(cod_str, "").strip().upper()
+
+                if not desc_encontrada:
+                    st.warning(f"Código {cod_str} não encontrado na PC10T.")
+                else:
+                    codigos_existentes = []
+                    for item in cadastros_base.get("cores_eva", []):
+                        try:
+                            codigos_existentes.append(int(item.get("codigo", -1)))
+                        except (ValueError, TypeError):
+                            pass
+
+                    if cod_num in codigos_existentes:
+                        st.warning(f"O código {cod_str} já está cadastrado.")
+                    else:
+                        cadastros_base["cores_eva"].append({
+                            "codigo": cod_num,
+                            "cor": desc_encontrada
+                        })
+                        cadastros_base["cores_eva"] = sorted(
+                            cadastros_base["cores_eva"], 
+                            key=lambda x: int(x.get("codigo", 0)) if str(x.get("codigo", "")).isdigit() else 999999
+                        )
+                        salvar_cadastros_base(cadastros_base)
+                        st.toast(f"Cor '{cod_str} - {desc_encontrada}' cadastrada com sucesso!", icon="✅")
+                        st.session_state["input_cod_cor"] = ""
+                        st.rerun()
+
     dados_grid_cor = []
     for i in cadastros_base.get("cores_eva", []):
         try:
@@ -166,8 +228,6 @@ with col_cad2:
     df_grid_cor["Selecionar"] = df_grid_cor["Selecionar"].astype(bool)
     df_grid_cor["Codigo"] = pd.to_numeric(df_grid_cor["Codigo"], errors="coerce").fillna(0).astype(int)
     df_grid_cor["Cor"] = df_grid_cor["Cor"].astype(str)
-
-    # Ordenação padrão numérica crescente
     df_grid_cor = df_grid_cor.sort_values(by="Codigo", ascending=True)
 
     grid_cor_editada = st.data_editor(
@@ -187,7 +247,6 @@ with col_cad2:
         if selecionadas.empty:
             st.warning("Marque ao menos uma cor.")
         else:
-            # Lista de códigos e representações textuais para validação contra o De-Para
             excluir_codigos = selecionadas["Codigo"].tolist()
             excluir_textos = [f"{r['Codigo']} - {r['Cor']}".strip().upper() for _, r in selecionadas.iterrows()]
             excluir_cores = selecionadas["Cor"].tolist()
@@ -209,5 +268,5 @@ with col_cad2:
                     if int(item.get("codigo", -1)) not in permitidos_cods
                 ]
                 salvar_cadastros_base(cadastros_base)
-                st.success("Cor(es) removida(s) com sucesso!")
+                st.toast("Cor(es) removida(s) com sucesso!", icon="🗑️")
                 st.rerun()

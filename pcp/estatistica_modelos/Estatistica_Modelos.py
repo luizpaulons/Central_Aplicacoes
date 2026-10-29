@@ -25,7 +25,6 @@ st.sidebar.markdown("---")
 menu_selecionado = st.sidebar.radio(
     "Navegação PCP:",
     [
-        "🏠 Início",
         "📝 De-Para",
         "⚙️ Cadastro de Solados e Cores",
         "📑 Importar Relatório CHB"
