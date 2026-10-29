@@ -6,3 +6,4 @@ openpyxl
 reportlab
 python-dateutil
 sqlalchemy
+python-dotenv
