@@ -25,17 +25,33 @@ def obter_driver_compativel():
     return "SQL Server"
 
 def criar_engine_sql():
-    sec = st.secrets["sql_server_CHB"]
+    # Tenta carregar do st.secrets de forma segura, se falhar ou não existir, usa um dicionário vazio
+    try:
+        if "sql_server_CHB" in st.secrets:
+            sec = st.secrets["sql_server_CHB"]
+        elif "sql_server" in st.secrets:
+            sec = st.secrets["sql_server"]
+        else:
+            sec = {}
+    except Exception:
+        sec = {}
+
     if "url" in sec and sec["url"]:
         return create_engine(sec["url"])
-    host = sec.get("host") or sec.get("server", "")
-    port = sec.get("port", 1433)
-    database = sec.get("database", "CHB")
-    username = sec.get("username", "")
-    password = urllib.parse.quote_plus(str(sec.get("password", "")))
+    
+    # Prioriza o .env (os.getenv), recorrendo ao st.secrets ou valores padrão
+    host = os.getenv("DB_HOST") or sec.get("host") or sec.get("server", "")
+    port = int(os.getenv("DB_PORT") or sec.get("port", 1433))
+    database = os.getenv("DB_NAME") or sec.get("database", "CHB")
+    username = os.getenv("DB_USER") or sec.get("username", "")
+    
+    raw_password = os.getenv("DB_PASS") if os.getenv("DB_PASS") is not None else sec.get("password", "")
+    password = urllib.parse.quote_plus(str(raw_password))
+    
     driver_real = obter_driver_compativel()
     driver_codificado = urllib.parse.quote_plus(driver_real)
     flags = "&TrustServerCertificate=yes" if "ODBC Driver" in driver_real else ""
+    
     conn_str = f"mssql+pyodbc://{username}:{password}@{host}:{port}/{database}?driver={driver_codificado}{flags}"
     return create_engine(conn_str)
 
