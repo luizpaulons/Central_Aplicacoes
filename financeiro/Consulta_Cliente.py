@@ -7,6 +7,11 @@ from io import BytesIO
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 st.set_page_config(page_title="Painel Financeiro de Clientes", layout="wide")
 st.title("📊 Painel Financeiro e Títulos por Cliente")
 
@@ -18,12 +23,13 @@ def get_connection():
         cfg = st.secrets["sql_server"]
     else:
         cfg = {
-            "host": "localhost",
-            "port": 1433,
-            "database": "CHB",
-            "username": "",
-            "password": "",
-            "driver": "SQL Server",
+            "dialect": os.getenv("DB_DIALECT", "mssql"),
+            "driver": os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server"),
+            "host": os.getenv("DB_HOST", "localhost"),
+            "port": int(os.getenv("DB_PORT", 1433)),
+            "database": os.getenv("DB_NAME", "CHB"),
+            "username": os.getenv("DB_USER", ""),
+            "password": os.getenv("DB_PASS", ""),
         }
 
     host = cfg.get("host") or cfg.get("server", "localhost")
