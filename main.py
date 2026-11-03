@@ -44,7 +44,7 @@ paginas_pcp = [
         url_path="pcp-estatistica"
     ),
     st.Page(
-            "pcp\planos_elaboracao\planos_elaboracao.py",
+            "pcp/planos_elaboracao/planos_elaboracao.py",
             title="Planos em Elaboração",
             icon="🏭",
             url_path="planos-elaboração"
