@@ -2,10 +2,8 @@ import pandas as pd
 import re
 
 def processar_fatura_xlsx(caminho_arquivo):
-    """Processa a fatura no formato exato da planilha da LYND CALCADOS LTDA."""
     df = pd.read_excel(caminho_arquivo, sheet_name=0)
     
-    # Extrai o vencimento e o valor total do cabeçalho
     vencimento = None
     valor_total = 0.0
     
@@ -20,8 +18,13 @@ def processar_fatura_xlsx(caminho_arquivo):
             except:
                 pass
 
-    # A partir da linha 8 estão os lançamentos
-    # Coluna 0: Data | Coluna 1: Lançamento | Coluna 3: Valor
+    # Extrai o ano da data de vencimento (ex: '05/11/2026' -> '2026')
+    ano_fatura = "2026"
+    if vencimento and "/" in vencimento:
+        partes_v = vencimento.split("/")
+        if len(partes_v) == 3:
+            ano_fatura = partes_v[2]
+
     lancamentos = []
     
     for idx in range(8, len(df)):
@@ -29,7 +32,6 @@ def processar_fatura_xlsx(caminho_arquivo):
         descricao = str(df.iloc[idx, 1]).strip()
         valor_raw = str(df.iloc[idx, 3]).strip()
         
-        # Ignora linhas de subtotal, pagamentos e cabeçalhos
         if not re.match(r"^\d{2}/\d{2}$", linha_data):
             continue
         if "PGTO DEBITO" in descricao or "SubTotal" in descricao or "Total" in descricao:
@@ -41,22 +43,39 @@ def processar_fatura_xlsx(caminho_arquivo):
         except:
             continue
             
-        # Detecta se é parcelada pela descrição (ex: PARC 01/03)
-        m_parc = re.search(r"PARC\s*(\d{2})/(\d{2})", descricao, re.IGNORECASE)
+        # Constrói a data completa: DD/MM/AAAA
+        data_completa = f"{linha_data}/{ano_fatura}"
+
+# 1. Padrão tradicional: PARC 05/10 ou PARC 1/12
+        m_parc = re.search(r"PARC\s*(\d{1,2})/(\d{1,2})", descricao, re.IGNORECASE)
+        
+        # 2. Padrão Tokio Marine / Seguradoras: AUTO01D12, AUTO11D12, 01D12
+        if not m_parc:
+            m_parc = re.search(r"(?:AUTO)?(\d{1,2})D(\d{1,2})", descricao, re.IGNORECASE)
+
+        num_parcela = 1
+        total_parcelas = 1
         parcela_info = None
+        
         if m_parc:
-            parcela_info = f"{int(m_parc.group(1))}/{int(m_parc.group(2))}"
+            num_parcela = int(m_parc.group(1))
+            total_parcelas = int(m_parc.group(2))
+            parcela_info = f"{num_parcela}/{total_parcelas}"
             
         lancamentos.append({
             "id_linha": idx,
-            "data_fatura": linha_data,
-            "descricao": descricao,
+            "data_fatura": data_completa,
+            "fornecedor": descricao,
             "valor": valor,
             "parcela": parcela_info,
+            "num_parcela": num_parcela,
+            "comprador": "Não identificado",
             "status": "PENDENTE",
             "tipo": "",
-            "anexo_nf": None,
-            "observacao": ""
+            "anexos_nf": [],
+            "numeros_nf": [],
+            "observacao": "",
+            "recorrente_salvo": False
         })
         
     return vencimento, valor_total, lancamentos
