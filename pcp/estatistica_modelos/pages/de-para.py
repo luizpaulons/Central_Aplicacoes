@@ -13,6 +13,7 @@ from utils.database import sincronizar_dados_base_sql_para_sqlite
 st.title("📝 Vínculo De-Para: Modelo e Cor x Solado e Cor do EVA")
 
 # --- CABEÇALHO: SINCRONIZAÇÃO SQL SERVER -> SQLITE ---
+# --- CABEÇALHO: SINCRONIZAÇÃO SQL SERVER -> SQLITE ---
 col_btn, col_info = st.columns([1, 4])
 
 with col_btn:
@@ -30,8 +31,13 @@ if clicou_sincronizar:
         st.session_state["msg_banco"] = ("erro", f"❌ Falha ao sincronizar com SQL Server: {e}")
 
 with col_info:
-    ultima_atualizacao = st.session_state.get("ultima_atualizacao_banco", "Base local SQLite em uso")
-    st.markdown(f"🕒 **Status da Base:** `{ultima_atualizacao}`")
+    # 1. Status da Base
+    status_base = "Base local SQLite em uso"
+    st.markdown(f"🕒 **Status da Base:** `{status_base}`")
+    
+    # 2. Última Atualização (com a mesma formatação)
+    ultima_atualizacao = st.session_state.get("ultima_atualizacao_banco", "Nunca atualizado nesta sessão")
+    st.markdown(f"📅 **Última Atualização:** `{ultima_atualizacao}`")
 
 if "msg_banco" in st.session_state:
     tipo_msg, texto_msg = st.session_state.pop("msg_banco")
