@@ -1,59 +1,34 @@
 import os
 import urllib.parse
-import pyodbc
+import pandas as pd
+import streamlit as st
 from sqlalchemy import create_engine
 
-def obter_driver_compativel():
-    """Detecta automaticamente os drivers instalados no ambiente."""
-    drivers_instalados = pyodbc.drivers()
-    preferencias = [
-        "ODBC Driver 18 for SQL Server",
-        "ODBC Driver 17 for SQL Server",
-        "SQL Server"
-    ]
-    for d in preferencias:
-        if d in drivers_instalados:
-            return d
-    return "ODBC Driver 18 for SQL Server"
-
 def criar_engine_sql():
-    # 1. Lê das variáveis de ambiente (Portainer) ou fallback para st.secrets
+    # Lê as credenciais diretamente do environment do container (Portainer)
     host = os.getenv("DB_HOST") or os.getenv("SQL_SERVER_HOST", "")
     port = os.getenv("DB_PORT") or os.getenv("SQL_SERVER_PORT", "1433")
     database = os.getenv("DB_NAME") or os.getenv("SQL_SERVER_DATABASE", "CHB")
-    username = os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "Producao")
+    username = os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "")
     password = os.getenv("DB_PASSWORD") or os.getenv("SQL_SERVER_PASSWORD", "")
-
-    # Se ainda estiver lendo de st.secrets:
-    if not host:
-        import streamlit as st
-        if hasattr(st, "secrets") and "sql_server_CHB" in st.secrets:
-            sec = st.secrets["sql_server_CHB"]
-            host = sec.get("host") or sec.get("server", "")
-            port = sec.get("port", 1433)
-            database = sec.get("database", "CHB")
-            username = sec.get("username", "Producao")
-            password = str(sec.get("password", ""))
-
-    driver_real = obter_driver_compativel()
-    driver_codificado = urllib.parse.quote_plus(driver_real)
     
-    # Tratamento obrigatório para senhas com caracteres especiais
+    # Tratamento para caracteres especiais na senha
     pwd_quoted = urllib.parse.quote_plus(str(password).strip())
-
-    # TrustServerCertificate é aceito apenas nos drivers modernos ODBC 17/18
-    flags = "&TrustServerCertificate=yes" if "ODBC Driver" in driver_real else ""
-
+    
+    # No container Linux, o driver configurado é o ODBC Driver 18
+    driver = "ODBC Driver 18 for SQL Server"
+    driver_codificado = urllib.parse.quote_plus(driver)
+    
     conn_str = (
         f"mssql+pyodbc://{username.strip()}:{pwd_quoted}@{host.strip()}:{port}/{database.strip()}"
-        f"?driver={driver_codificado}{flags}&timeout=30"
+        f"?driver={driver_codificado}&TrustServerCertificate=yes&timeout=30"
     )
     return create_engine(conn_str)
 
 @st.cache_data(ttl=600)
 def buscar_dados_base_sql():
-    """Consulta 1: Modelos e Cores ativas (PC13T, PC10T, PC03T) para o De-Para."""
     engine = criar_engine_sql()
+    
     query = """
         SELECT 
             C.PC03Codigo AS Linha, 
