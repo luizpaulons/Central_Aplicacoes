@@ -13,12 +13,13 @@ st.set_page_config(
 # -------------------------------------------------------------
 # BARRA LATERAL (NAVEGAÇÃO POR RÁDIO)
 # -------------------------------------------------------------
-st.sidebar.title("Navegação")
+st.sidebar.title("Planos em Elaboração")
+st.sidebar.markdown("---")
 pagina = st.sidebar.radio(
     "Selecione a Tela:",
     ["Início", "Processar Planilha"]
 )
-
+st.sidebar.markdown("---")
 # -------------------------------------------------------------
 # FUNÇÃO PRINCIPAL DE PROCESSAMENTO DO EXCEL
 # -------------------------------------------------------------

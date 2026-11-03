@@ -25,10 +25,12 @@ st.sidebar.markdown("---")
 menu_selecionado = st.sidebar.radio(
     "Navegação PCP:",
     [
+        "🏠 Início",
         "📝 De-Para",
         "⚙️ Cadastro de Solados e Cores",
         "📑 Importar Relatório CHB"
-    ]
+    ],
+    index=0
 )
 st.sidebar.markdown("---")
 st.sidebar.caption("PCP - Gestão de Solados e EVA")
@@ -77,15 +79,49 @@ def carregar_script(nomes_possiveis):
 # RENDERIZAÇÃO DA PÁGINA SELECIONADA
 # ==========================================================
 if menu_selecionado == "🏠 Início":
+    st.title("🏭 Central PCP — Gestão de Solados e Cores de EVA")
+    st.markdown("---")
+    
     st.markdown("""
-### Bem-vindo ao sistema de controle e relatórios do PCP!
+    Bem-vindo à ferramenta central de controle, padronização e emissão de relatórios do **PCP (Planejamento e Controle da Produção)**!
 
-Utilize o menu na **barra lateral esquerda** para navegar pelas telas do sistema:
+    Esta aplicação integra e cruza os dados do ERP CHB com as definições técnicas de produção de solados e EVA, eliminando processos manuais e garantindo precisão nos pedidos de compras e ordens de fabricação.
+    """)
+    
+    st.markdown("### 📌 Módulos e Funcionalidades")
+    st.info("Utilize o menu de navegação na **barra lateral esquerda** para acessar as rotinas do sistema:")
 
-1. **📝 De-Para**: Faça o vínculo das referências e cores ativas do banco ERP com os solados e cores de EVA.
-2. **⚙️ Cadastro de Solados e Cores**: Cadastre novos solados e consulte as cores oficiais diretamente da tabela `PC10T`.
-3. **📑 Importar Excel e Gerar Relatório**: Carregue o arquivo `.xlsx` do ERP CHB para gerar os relatórios consolidados em PDF e Excel.
-""")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 📝 Vínculo De-Para")
+        st.markdown("""
+        * Relacionamento direto entre referências/cores do ERP e os solados/cores de EVA.
+        * Suporte a **preenchimento em lote** para modelos com múltiplas variantes.
+        * Persistência dos vínculos para relatórios futuros.
+        """)
+
+    with col2:
+        st.markdown("#### ⚙️ Cadastros Oficiais")
+        st.markdown("""
+        * Padronização dos nomes oficiais de solados e cores técnicas de EVA.
+        * **Travas de integridade**: impede a exclusão acidental de itens vinculados a modelos ativos.
+        """)
+
+    with col3:
+        st.markdown("#### 📑 Relatórios CHB")
+        st.markdown("""
+        * Leitura da planilha `.xlsx` exportada do ERP CHB cruzada com a base De-Para.
+        * Geração de relatórios em **PDF** (layout paisagem) e **Excel** com resumos por modelo, por solado e consolidados por cor de EVA.
+        """)
+
+    st.markdown("---")
+    st.markdown("### 🚀 Fluxo de Trabalho Recomendado")
+    st.markdown("""
+    1. **Cadastros:** Certifique-se de cadastrar previamente os solados e cores na tela **⚙️ Cadastro de Solados e Cores**.
+    2. **Vínculo:** Acesse **📝 De-Para** para relacionar as linhas e cores aos respectivos solados e EVA.
+    3. **Emissão:** Na tela **📑 Importar Relatório CHB**, carregue a planilha `.xlsx` para gerar o relatório final consolidado.
+    """)
 
 elif menu_selecionado == "📝 De-Para":
     carregar_script(["de-para.py", "de_para.py", "1_📝_De_Para.py", "1_De_Para.py"])
