@@ -1,34 +1,36 @@
 import os
-import urllib.parse
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 def criar_engine_sql():
-    # Lê as credenciais diretamente do environment do container (Portainer)
-    host = os.getenv("DB_HOST") or os.getenv("SQL_SERVER_HOST", "")
-    port = os.getenv("DB_PORT") or os.getenv("SQL_SERVER_PORT", "1433")
-    database = os.getenv("DB_NAME") or os.getenv("SQL_SERVER_DATABASE", "CHB")
-    username = os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "")
-    password = os.getenv("DB_PASS") or os.getenv("SQL_SERVER_PASSWORD", "")
-    
-    # Tratamento para caracteres especiais na senha
-    pwd_quoted = urllib.parse.quote_plus(str(password).strip())
-    
-    # No container Linux, o driver configurado é o ODBC Driver 18
-    driver = "ODBC Driver 18 for SQL Server"
-    driver_codificado = urllib.parse.quote_plus(driver)
-    
-    conn_str = (
-        f"mssql+pyodbc://{username.strip()}:{pwd_quoted}@{host.strip()}:{port}/{database.strip()}"
-        f"?driver={driver_codificado}&TrustServerCertificate=yes&timeout=30"
+    # 1. Lê as variáveis de ambiente com strip() para evitar quebras de linha
+    host = (os.getenv("DB_HOST") or os.getenv("SQL_SERVER_HOST", "")).strip()
+    port = int((os.getenv("DB_PORT") or os.getenv("SQL_SERVER_PORT", "1433")).strip())
+    database = (os.getenv("DB_NAME") or os.getenv("SQL_SERVER_DATABASE", "CHB")).strip()
+    username = (os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "Producao")).strip()
+    password = (os.getenv("DB_PASS") or os.getenv("SQL_SERVER_PASSWORD", "")).strip()
+
+    # 2. Monta a URL de forma segura (URL.create trata qualquer caractere especial na senha)
+    connection_url = URL.create(
+        "mssql+pyodbc",
+        username=username,
+        password=password,
+        host=host,
+        port=port,
+        database=database,
+        query={
+            "driver": "ODBC Driver 18 for SQL Server",
+            "TrustServerCertificate": "yes",
+            "timeout": "30",
+        },
     )
-    return create_engine(conn_str)
+    return create_engine(connection_url)
 
 @st.cache_data(ttl=600)
 def buscar_dados_base_sql():
     engine = criar_engine_sql()
-    
     query = """
         SELECT 
             C.PC03Codigo AS Linha, 
@@ -51,7 +53,6 @@ def buscar_dados_base_sql():
 
 @st.cache_data(ttl=600)
 def buscar_cores_pc10t():
-    """Consulta 2: Relação oficial de cores cadastradas na PC10T."""
     engine = criar_engine_sql()
     query = "SELECT PC10Codigo, PC10Descr FROM PC10T ORDER BY PC10Codigo"
     with engine.connect() as conexao:
