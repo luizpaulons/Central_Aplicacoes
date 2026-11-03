@@ -1,7 +1,11 @@
 import os
-from sqlalchemy import create_engine
+import pandas as pd
+from sqlalchemy import create_engine, text
 
+# Caminho do banco SQLite apontando para o volume persistido
 CAMINHO_DB = "/opt/pcp_dados/pcp_local.db"
+os.makedirs(os.path.dirname(CAMINHO_DB), exist_ok=True)
+
 ENGINE_SQLITE = create_engine(f"sqlite:///{CAMINHO_DB}", echo=False)
 
 
