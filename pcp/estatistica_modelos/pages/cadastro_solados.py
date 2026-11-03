@@ -161,102 +161,80 @@ with col_cad1:
                 st.toast("Solado(s) removido(s) com sucesso!", icon="🗑️")
                 st.rerun()
 
-# ==========================================================
-# 2. CORES DE EVA (BUSCA NA PC10T)
-# ==========================================================
+# --- Bloco de Cores de EVA ---
 with col_cad2:
     st.markdown("### 🎨 Cores de EVA")
-    try:
-        df_cores_banco = buscar_cores_pc10t()
-        mapa_pc10 = dict(zip(df_cores_banco["PC10Codigo"].astype(str).str.strip(), df_cores_banco["PC10Descr"].astype(str).str.strip()))
-    except Exception as e:
-        st.error(f"Erro ao carregar PC10T: {e}")
-        mapa_pc10 = {}
-
+    
     col_add_c1, col_add_c2 = st.columns([3, 1])
     with col_add_c1:
-        st.text_input("CÓDIGO DA COR (PC10T):", placeholder="EX: 545", key="input_cod_cor")
-        cod_preview = st.session_state.get("input_cod_cor", "").strip()
-        if cod_preview:
-            desc_preview = mapa_pc10.get(cod_preview, "")
-            if desc_preview:
-                st.caption(f"✅ Descrição na PC10T: **{desc_preview}**")
-            else:
-                st.caption("⚠️ Código não localizado na PC10T.")
+        cod_digitado = st.text_input("CÓDIGO DA COR (PC10T):", placeholder="EX: 545", key="input_cod_cor").strip().upper()
 
     with col_add_c2:
         st.write("")
         st.write("")
-        if st.button("➕ Adicionar", key="btn_add_cor"):
-            cod_raw = st.session_state.get("input_cod_cor", "").strip()
-            if not cod_raw:
-                st.warning("Digite o código da cor.")
+        btn_adicionar = st.button("➕ Adicionar", key="btn_add_cor")
+
+    if btn_adicionar:
+        if not cod_digitado:
+            st.warning("Digite o código da cor.")
+        else:
+            try:
+                cod_num = int(cod_digitado)
+            except ValueError:
+                st.warning("O código da cor deve ser numérico.")
+                st.stop()
+
+            cod_str = str(cod_num)
+            
+            # Validação local prévia para evitar requisição ao banco se já existir
+            codigos_existentes = [
+                int(item.get("codigo", -1)) 
+                for item in cadastros_base.get("cores_eva", []) 
+                if str(item.get("codigo", "")).isdigit()
+            ]
+            
+            if cod_num in codigos_existentes:
+                st.warning(f"O código {cod_str} já está cadastrado no SQLite.")
             else:
-                try:
-                    cod_num = int(cod_raw)
-                except ValueError:
-                    st.warning("O código da cor deve ser numérico.")
-                    st.stop()
-
-                cod_str = str(cod_num)
-                desc_encontrada = mapa_pc10.get(cod_str, "").strip().upper()
-
+                # Consulta pontual ao SQL Server SOMENTE AGORA
+                with st.spinner("Consultando SQL Server..."):
+                    desc_encontrada = buscar_descricao_cor_pontual(cod_str)
+                
                 if not desc_encontrada:
-                    st.warning(f"Código {cod_str} não encontrado na PC10T.")
+                    st.error(f"Código {cod_str} não encontrado na tabela PC10T do SQL Server.")
                 else:
-                    codigos_existentes = []
-                    for item in cadastros_base.get("cores_eva", []):
-                        try:
-                            codigos_existentes.append(int(item.get("codigo", -1)))
-                        except (ValueError, TypeError):
-                            pass
+                    cadastros_base["cores_eva"].append({
+                        "codigo": cod_num,
+                        "cor": desc_encontrada
+                    })
+                    cadastros_base["cores_eva"] = sorted(
+                        cadastros_base["cores_eva"], 
+                        key=lambda x: int(x.get("codigo", 0)) if str(x.get("codigo", "")).isdigit() else 999999
+                    )
+                    salvar_cadastros_base(cadastros_base)
+                    st.toast(f"Cor '{cod_str} - {desc_encontrada}' adicionada!", icon="✅")
+                    st.session_state["input_cod_cor"] = ""
+                    st.rerun()
 
-                    if cod_num in codigos_existentes:
-                        st.warning(f"O código {cod_str} já está cadastrado.")
-                    else:
-                        cadastros_base["cores_eva"].append({
-                            "codigo": cod_num,
-                            "cor": desc_encontrada
-                        })
-                        cadastros_base["cores_eva"] = sorted(
-                            cadastros_base["cores_eva"], 
-                            key=lambda x: int(x.get("codigo", 0)) if str(x.get("codigo", "")).isdigit() else 999999
-                        )
-                        salvar_cadastros_base(cadastros_base)
-                        st.toast(f"Cor '{cod_str} - {desc_encontrada}' cadastrada com sucesso!", icon="✅")
-                        st.session_state["input_cod_cor"] = ""
-                        st.rerun()
-
-    dados_grid_cor = []
-    for i in cadastros_base.get("cores_eva", []):
-        try:
-            cod_val = int(i.get("codigo", 0))
-        except (ValueError, TypeError):
-            cod_val = 0
-
-        dados_grid_cor.append({
-            "Selecionar": False,
-            "Codigo": cod_val,
-            "Cor": str(i.get("cor", "")).upper()
-        })
-
+    # Grid de Cores lida diretamente do SQLite
+    dados_grid_cor = [
+        {"Selecionar": False, "Codigo": i.get("codigo", ""), "Cor": i.get("cor", "")} 
+        for i in cadastros_base.get("cores_eva", [])
+    ]
     df_grid_cor = pd.DataFrame(dados_grid_cor) if dados_grid_cor else pd.DataFrame(columns=["Selecionar", "Codigo", "Cor"])
-    df_grid_cor["Selecionar"] = df_grid_cor["Selecionar"].astype(bool)
-    df_grid_cor["Codigo"] = pd.to_numeric(df_grid_cor["Codigo"], errors="coerce").fillna(0).astype(int)
-    df_grid_cor["Cor"] = df_grid_cor["Cor"].astype(str)
-    df_grid_cor = df_grid_cor.sort_values(by="Codigo", ascending=True)
-
+    
     grid_cor_editada = st.data_editor(
         df_grid_cor,
         column_config={
             "Selecionar": st.column_config.CheckboxColumn("Selecionar", default=False, width="small"),
-            "Codigo": st.column_config.NumberColumn("Codigo", format="%d", disabled=True, width="small"),
+            "Codigo": st.column_config.NumberColumn("Codigo", disabled=True, width="small"),
             "Cor": st.column_config.TextColumn("Cor", disabled=True, width="large"),
         },
         hide_index=True,
         use_container_width=True,
         key="grid_cores_exclusao"
     )
+    # (resto da lógica de exclusão continua idêntica)
 
     if st.button("🗑️ Excluir Cores Selecionadas"):
         selecionadas = grid_cor_editada[grid_cor_editada["Selecionar"] == True] if not grid_cor_editada.empty else pd.DataFrame()

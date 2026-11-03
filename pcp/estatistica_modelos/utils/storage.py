@@ -159,3 +159,13 @@ def fmt_milhar(v):
         return f"{n:,}".replace(",", ".")
     except Exception:
         return str(v)
+
+def carregar_dados_base_local():
+    """Lê os dados sincronizados diretamente da tabela local do SQLite."""
+    with ENGINE_SQLITE.connect() as conn:
+        try:
+            df = pd.read_sql_query("SELECT * FROM dados_base_pcp", conn, dtype=str)
+            return df
+        except Exception:
+            # Caso a tabela ainda não tenha sido sincronizada pela primeira vez
+            return pd.DataFrame(columns=["Linha", "Modelo", "Cor", "Descrição Cor"])

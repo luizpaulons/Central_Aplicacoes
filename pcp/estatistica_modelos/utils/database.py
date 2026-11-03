@@ -1,18 +1,16 @@
 import os
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 
 def criar_engine_sql():
-    # 1. Lê as variáveis de ambiente com strip() para evitar quebras de linha
     host = (os.getenv("DB_HOST") or os.getenv("SQL_SERVER_HOST", "")).strip()
     port = int((os.getenv("DB_PORT") or os.getenv("SQL_SERVER_PORT", "1433")).strip())
     database = (os.getenv("DB_NAME") or os.getenv("SQL_SERVER_DATABASE", "CHB")).strip()
     username = (os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "Producao")).strip()
-    password = (os.getenv("DB_PASS") or os.getenv("SQL_SERVER_PASSWORD", "")).strip()
+    password = (os.getenv("DB_PASSWORD") or os.getenv("SQL_SERVER_PASSWORD", "")).strip()
 
-    # 2. Monta a URL de forma segura (URL.create trata qualquer caractere especial na senha)
     connection_url = URL.create(
         "mssql+pyodbc",
         username=username,
@@ -28,9 +26,24 @@ def criar_engine_sql():
     )
     return create_engine(connection_url)
 
-@st.cache_data(ttl=600)
-def buscar_dados_base_sql():
+def buscar_descricao_cor_pontual(codigo_cor: str) -> str:
+    """Busca pontualmente no SQL Server apenas a cor informada."""
     engine = criar_engine_sql()
+    query = text("SELECT PC10Descr FROM PC10T WHERE PC10Codigo = :cod")
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query, {"cod": str(codigo_cor).strip()}).fetchone()
+            if result and result[0]:
+                return str(result[0]).strip().upper()
+    except Exception as e:
+        st.error(f"Erro ao consultar cor {codigo_cor} no SQL Server: {e}")
+    return ""
+
+def sincronizar_dados_base_sql_para_sqlite():
+    """Busca dados no SQL Server e sincroniza na tabela local do SQLite."""
+    from utils.storage import ENGINE_SQLITE
+    
+    engine_sql = criar_engine_sql()
     query = """
         SELECT 
             C.PC03Codigo AS Linha, 
@@ -47,16 +60,12 @@ def buscar_dados_base_sql():
         GROUP BY C.PC03Codigo, C.PC03Descr, B.PC10Codigo, B.PC10Descr
         ORDER BY C.PC03Codigo, B.PC10Codigo
     """
-    with engine.connect() as conexao:
-        df = pd.read_sql_query(query, con=conexao)
-    return df
-
-@st.cache_data(ttl=600)
-def buscar_cores_pc10t():
-    engine = criar_engine_sql()
-    query = "SELECT PC10Codigo, PC10Descr FROM PC10T ORDER BY PC10Codigo"
-    with engine.connect() as conexao:
-        df = pd.read_sql_query(query, con=conexao)
-    df["PC10Codigo"] = df["PC10Codigo"].astype(str).str.strip()
-    df["PC10Descr"] = df["PC10Descr"].astype(str).str.strip()
-    return df
+    with engine_sql.connect() as conn_sql:
+        df_sql = pd.read_sql_query(query, con=conn_sql)
+        
+    if not df_sql.empty:
+        # Salva/Substitui a tabela cache no SQLite
+        with ENGINE_SQLITE.begin() as conn_lite:
+            df_sql.to_sql("dados_base_pcp", con=conn_lite, if_exists="replace", index=False)
+            
+    return len(df_sql)

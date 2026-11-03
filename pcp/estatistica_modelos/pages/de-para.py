@@ -6,30 +6,26 @@ from utils.storage import carregar_cadastros_base, carregar_de_para, salvar_de_p
 
 st.title("📝 Vínculo De-Para: Modelo e Cor x Solado e Cor do EVA")
 
-# --- BLOCO DO BOTÃO ATUALIZAR BANCO (LADO ESQUERDO) ---
 col_btn, col_info = st.columns([1, 4])
 
 with col_btn:
-    clicou_atualizar = st.button("🔄 Atualizar Banco", use_container_width=True)
+    clicou_atualizar = st.button("🔄 Sincronizar Banco", use_container_width=True)
 
 if clicou_atualizar:
     try:
-        # Limpa o cache da consulta SQL e força nova busca
-        st.cache_data.clear()
-        _ = buscar_dados_base_sql()
-        agora = datetime.now().strftime("%d/%m/%Y às %H:%M:%S")
-        st.session_state["ultima_atualizacao_banco"] = agora
-        st.session_state["msg_banco"] = ("sucesso", f"✅ Banco de dados atualizado com sucesso em {agora}!")
-        st.rerun()
+        with st.spinner("Sincronizando modelos e cores do SQL Server para o SQLite..."):
+            total_linhas = sincronizar_dados_base_sql_para_sqlite()
+            agora = datetime.now().strftime("%d/%m/%Y às %H:%M:%S")
+            st.session_state["ultima_atualizacao_banco"] = agora
+            st.session_state["msg_banco"] = ("sucesso", f"✅ Base sincronizada com sucesso! {total_linhas} registros atualizados em {agora}.")
+            st.rerun()
     except Exception as e:
-        st.session_state["msg_banco"] = ("erro", f"❌ Falha ao atualizar dados do banco: {e}")
+        st.session_state["msg_banco"] = ("erro", f"❌ Falha ao sincronizar com SQL Server: {e}")
 
-# Exibe a data/hora da última atualização ao lado do botão
 with col_info:
-    ultima_atualizacao = st.session_state.get("ultima_atualizacao_banco", "Nunca atualizado nesta sessão")
-    st.markdown(f"🕒 **Última atualização:** `{ultima_atualizacao}`")
+    ultima_atualizacao = st.session_state.get("ultima_atualizacao_banco", "Base local SQLite em uso")
+    st.markdown(f"🕒 **Status da Base:** `{ultima_atualizacao}`")
 
-# Exibição de alertas de sucesso ou falha
 if "msg_banco" in st.session_state:
     tipo_msg, texto_msg = st.session_state.pop("msg_banco")
     if tipo_msg == "sucesso":
@@ -39,9 +35,19 @@ if "msg_banco" in st.session_state:
 
 st.markdown("---")
 
-# --- DADOS DE CADASTROS BASE ---
-cadastros_base = carregar_cadastros_base()
-lista_solados_opcoes = [""] + cadastros_base.get("solados", [])
+# Lê a base diretamente do SQLite (abertura instantânea, sem consulta remota)
+df_fonte = carregar_dados_base_local()
+
+if df_fonte.empty:
+    st.warning("A base local do SQLite ainda não foi inicializada. Clique em '🔄 Sincronizar Banco' para carregar os dados do SQL Server.")
+else:
+    # Segue exatamente o fluxo existente do De-Para
+    df_fonte["Linha"] = df_fonte["Linha"].astype(str).str.strip()
+    df_fonte["Modelo"] = df_fonte["Modelo"].astype(str).str.strip()
+    df_fonte["Cor"] = df_fonte["Cor"].astype(str).str.strip()
+    df_fonte["Descrição Cor"] = df_fonte["Descrição Cor"].astype(str).str.strip()
+    
+    # (Resto do código do De-Para permanece o mesmo)
 
 # Opções de cores ordenadas numericamente no padrão "CÓDIGO - COR"
 def extrair_codigo(item):
