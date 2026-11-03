@@ -10,7 +10,7 @@ def criar_engine_sql():
     port = os.getenv("DB_PORT") or os.getenv("SQL_SERVER_PORT", "1433")
     database = os.getenv("DB_NAME") or os.getenv("SQL_SERVER_DATABASE", "CHB")
     username = os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "")
-    password = os.getenv("DB_PASSWORD") or os.getenv("SQL_SERVER_PASSWORD", "")
+    password = os.getenv("DB_PASS") or os.getenv("SQL_SERVER_PASSWORD", "")
     
     # Tratamento para caracteres especiais na senha
     pwd_quoted = urllib.parse.quote_plus(str(password).strip())
