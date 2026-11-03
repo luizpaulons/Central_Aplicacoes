@@ -1,27 +1,24 @@
-import os
-import pandas as pd
 import streamlit as st
+import pandas as pd
 from datetime import datetime
 
-# Garante que utils seja encontrado caso o script seja executado isoladamente
-import sys
-from pathlib import Path
-pasta_modulo = str(Path(__file__).resolve().parent.parent if "pages" in str(Path(__file__)) else Path(__file__).resolve().parent)
-if pasta_modulo not in sys.path:
-    sys.path.insert(0, pasta_modulo)
-
-# Imports das rotinas locais
-from utils.storage import carregar_de_para, salvar_de_para, carregar_cadastros_base, carregar_dados_base_local
+from utils.storage import (
+    carregar_cadastros_base,
+    carregar_de_para,
+    salvar_de_para,
+    carregar_dados_base_local
+)
 from utils.database import sincronizar_dados_base_sql_para_sqlite
 
 st.title("📝 Vínculo De-Para: Modelo e Cor x Solado e Cor do EVA")
 
+# --- CABEÇALHO: SINCRONIZAÇÃO SQL SERVER -> SQLITE ---
 col_btn, col_info = st.columns([1, 4])
 
 with col_btn:
-    clicou_atualizar = st.button("🔄 Sincronizar Banco", use_container_width=True)
+    clicou_sincronizar = st.button("🔄 Sincronizar Banco", use_container_width=True)
 
-if clicou_atualizar:
+if clicou_sincronizar:
     try:
         with st.spinner("Sincronizando modelos e cores do SQL Server para o SQLite..."):
             total_linhas = sincronizar_dados_base_sql_para_sqlite()
@@ -45,61 +42,20 @@ if "msg_banco" in st.session_state:
 
 st.markdown("---")
 
-# Lê a base diretamente do SQLite (abertura instantânea, sem consulta remota)
+# Lê a base diretamente da tabela SQLite local
 df_fonte = carregar_dados_base_local()
 
 if df_fonte.empty:
-    st.warning("A base local do SQLite ainda não foi inicializada. Clique em '🔄 Sincronizar Banco' para carregar os dados do SQL Server.")
+    st.warning("A base local do SQLite ainda não possui dados. Clique em '🔄 Sincronizar Banco' para importar do SQL Server.")
 else:
-    # Segue exatamente o fluxo existente do De-Para
-    df_fonte["Linha"] = df_fonte["Linha"].astype(str).str.strip()
-    df_fonte["Modelo"] = df_fonte["Modelo"].astype(str).str.strip()
-    df_fonte["Cor"] = df_fonte["Cor"].astype(str).str.strip()
-    df_fonte["Descrição Cor"] = df_fonte["Descrição Cor"].astype(str).str.strip()
-    
-    # (Resto do código do De-Para permanece o mesmo)
-
-# Opções de cores ordenadas numericamente no padrão "CÓDIGO - COR"
-def extrair_codigo(item):
-    if isinstance(item, dict):
-        try:
-            return int(item.get("codigo", 0))
-        except (ValueError, TypeError):
-            return 999999
-    return 999999
-
-cores_ordenadas = sorted(cadastros_base.get("cores_eva", []), key=extrair_codigo)
-
-lista_cores_opcoes = [""]
-for item in cores_ordenadas:
-    if isinstance(item, dict):
-        cod = str(item.get("codigo", "")).strip()
-        cor = str(item.get("cor", "")).strip().upper()
-        if cod and cor:
-            lista_cores_opcoes.append(f"{cod} - {cor}")
-        elif cor:
-            lista_cores_opcoes.append(cor)
-    else:
-        lista_cores_opcoes.append(str(item).strip().upper())
-
-lista_cores_opcoes = list(dict.fromkeys(lista_cores_opcoes))
-
-# --- CONSULTA PRINCIPAL DOS MODELOS ---
-try:
-    df_fonte = buscar_dados_base_sql()
-except Exception as e:
-    st.error(f"Erro ao conectar ao banco de dados: {e}")
-    df_fonte = None
-
-if df_fonte is not None and not df_fonte.empty:
-    df_fonte["Linha"] = df_fonte["Linha"].astype(str).str.strip()
-    df_fonte["Modelo"] = df_fonte["Modelo"].astype(str).str.strip()
-    df_fonte["Cor"] = df_fonte["Cor"].astype(str).str.strip()
-    df_fonte["Descrição Cor"] = df_fonte["Descrição Cor"].astype(str).str.strip()
+    df_fonte["Linha"] = df_fonte["Linha"].astype(str).str.strip().str.upper()
+    df_fonte["Modelo"] = df_fonte["Modelo"].astype(str).str.strip().str.upper()
+    df_fonte["Cor"] = df_fonte["Cor"].astype(str).str.strip().str.upper()
+    df_fonte["Descrição Cor"] = df_fonte["Descrição Cor"].astype(str).str.strip().str.upper()
 
     df_ref_mod = df_fonte[["Linha", "Modelo"]].drop_duplicates()
     df_ref_mod = df_ref_mod.sort_values(
-        by=["Linha"], 
+        by=["Linha"],
         key=lambda s: s.map(lambda x: (0, int(x)) if str(x).isdigit() else (1, str(x)))
     )
     df_ref_mod["opcao"] = df_ref_mod["Linha"] + " - " + df_ref_mod["Modelo"]
@@ -107,8 +63,8 @@ if df_fonte is not None and not df_fonte.empty:
 
     col_f1, col_f2 = st.columns([3, 3])
     with col_f1:
-        item_selecionado = st.selectbox("Selecione a Referência / Modelo:", options=lista_opcoes)
-        linha_selecionada = item_selecionado.split(" - ")[0].strip()
+        item_selecionado = st.selectbox("Selecione a Referência / Modelo", options=lista_opcoes)
+        linha_selecionada = item_selecionado.split(" - ")[0].strip().upper()
 
     with col_f2:
         modelos_encontrados = df_fonte[df_fonte["Linha"] == linha_selecionada]["Modelo"].unique()
@@ -119,95 +75,102 @@ if df_fonte is not None and not df_fonte.empty:
     df_filtrado = df_fonte[df_fonte["Linha"] == linha_selecionada].drop_duplicates(subset=["Linha", "Cor"]).copy()
 
     df_de_para_atual = carregar_de_para()
-    df_merge = pd.merge(
-        df_filtrado, 
-        df_de_para_atual.rename(columns={"linha": "Linha", "cor": "Cor", "nome_solado": "Solado", "cor_eva": "Cor do EVA"})[["Linha", "Cor", "Solado", "Cor do EVA"]], 
-        on=["Linha", "Cor"], 
-        how="left"
-    )
-    df_merge["Solado"] = df_merge["Solado"].fillna("")
-    df_merge["Cor do EVA"] = df_merge["Cor do EVA"].fillna("")
+    mapa_existente_solado = {}
+    mapa_existente_eva = {}
+    if not df_de_para_atual.empty:
+        for _, r in df_de_para_atual.iterrows():
+            ch = (str(r.get("linha", "")).strip().upper(), str(r.get("cor", "")).strip().upper())
+            mapa_existente_solado[ch] = str(r.get("nome_solado", "")).strip().upper()
+            mapa_existente_eva[ch] = str(r.get("cor_eva", "")).strip().upper()
 
-    # Compatibilidade retroativa de formatos de cor
-    mapa_para_formato_novo = {}
-    for item in cadastros_base.get("cores_eva", []):
-        if isinstance(item, dict) and item.get("codigo") and item.get("cor"):
-            chave_desc = str(item["cor"]).strip().upper()
-            mapa_para_formato_novo[chave_desc] = f"{item['codigo']} - {chave_desc}"
+    linhas_grid = []
+    for _, row in df_filtrado.iterrows():
+        ch = (row["Linha"], row["Cor"])
+        linhas_grid.append({
+            "Sel": False,
+            "Linha": row["Linha"],
+            "Modelo": row["Modelo"],
+            "Cor": row["Cor"],
+            "Descrição Cor": row["Descrição Cor"],
+            "Solado": mapa_existente_solado.get(ch, ""),
+            "Cor do EVA": mapa_existente_eva.get(ch, "")
+        })
 
-    df_merge["Cor do EVA"] = df_merge["Cor do EVA"].apply(
-        lambda x: mapa_para_formato_novo.get(str(x).strip().upper(), x) if str(x).strip().upper() in mapa_para_formato_novo else x
-    )
+    df_grid_final = pd.DataFrame(linhas_grid)
+    chave_df = f"grid_v7_{linha_selecionada}"
+    chave_master = f"master_v7_{linha_selecionada}"
 
-    df_merge["Sel"] = False
+    colunas_esperadas = ["Sel", "Linha", "Modelo", "Cor", "Descrição Cor", "Solado", "Cor do EVA"]
+    if chave_df not in st.session_state or list(st.session_state[chave_df].columns) != colunas_esperadas:
+        st.session_state[chave_df] = df_grid_final
 
-    chave_df = f"grid_trabalho_{linha_selecionada}"
-    chave_master = f"master_check_{linha_selecionada}"
+    # Carrega os cadastros base do SQLite antes de montar as listas
+    cadastros_base = carregar_cadastros_base()
+    solados_disp = cadastros_base.get("solados", [])
+    cores_disp = [
+        item["cor"]
+        for item in cadastros_base.get("cores_eva", [])
+        if isinstance(item, dict) and "cor" in item
+    ]
 
-    if chave_df not in st.session_state:
-        st.session_state[chave_df] = df_merge
+    opcoes_solados_grid = [""] + solados_disp
+    opcoes_cores_grid = [""] + cores_disp
+
+    opcoes_solados_lote = ["ESCOLHA UMA OPÇÃO"] + solados_disp
+    opcoes_cores_lote = ["ESCOLHA UMA OPÇÃO"] + cores_disp
 
     with st.expander("⚡ Preenchimento em LOTE para os itens marcados", expanded=True):
         col_l1, col_l2, col_l3 = st.columns([2, 2, 1])
         with col_l1:
-            sol_lote = st.selectbox(
-                "Nome do Solado (Lote):", 
-                options=["ESCOLHA UMA OPÇÃO"] + [s for s in lista_solados_opcoes if s],
-                index=0,
-                key=f"sol_lote_{linha_selecionada}"
-            )
+            sol_lote = st.selectbox("Solado (Lote):", options=opcoes_solados_lote, index=0, key=f"sol_lote_{linha_selecionada}")
         with col_l2:
-            eva_lote = st.selectbox(
-                "Cor do EVA (Lote):", 
-                options=["ESCOLHA UMA OPÇÃO"] + [c for c in lista_cores_opcoes if c],
-                index=0,
-                key=f"eva_lote_{linha_selecionada}"
-            )
+            eva_lote = st.selectbox("Cor do EVA (Lote):", options=opcoes_cores_lote, index=0, key=f"eva_lote_{linha_selecionada}")
         with col_l3:
             st.write("")
             st.write("")
             if st.button("Aplicar Lote", key=f"btn_lote_{linha_selecionada}"):
                 marcados = st.session_state[chave_df]["Sel"] == True
                 if marcados.any():
-                    if sol_lote != "ESCOLHA UMA OPÇÃO":
+                    if sol_lote and sol_lote != "ESCOLHA UMA OPÇÃO":
                         st.session_state[chave_df].loc[marcados, "Solado"] = sol_lote
-                    if eva_lote != "ESCOLHA UMA OPÇÃO":
+                    if eva_lote and eva_lote != "ESCOLHA UMA OPÇÃO":
                         st.session_state[chave_df].loc[marcados, "Cor do EVA"] = eva_lote
                     st.success(f"Aplicado a {marcados.sum()} item(ns)!")
                     st.rerun()
                 else:
                     st.warning("Marque as caixas na coluna 'Sel' dos itens desejados.")
 
-    def toggle_todos_cb():
+    def toggle_todos():
         st.session_state[chave_df]["Sel"] = st.session_state[chave_master]
 
-    st.checkbox("Marcar / Desmarcar Todos na Tabela", key=chave_master, on_change=toggle_todos_cb)
+    st.checkbox("Marcar / Desmarcar Todos", key=chave_master, on_change=toggle_todos)
 
-    grid_amigavel = st.data_editor(
+    grid_editada = st.data_editor(
         st.session_state[chave_df],
-        column_order=["Sel", "Linha", "Modelo", "Cor", "Descrição Cor", "Solado", "Cor do EVA"],
         column_config={
             "Sel": st.column_config.CheckboxColumn("Sel", default=False, width="small"),
             "Linha": st.column_config.TextColumn("Linha", disabled=True, width="small"),
             "Modelo": st.column_config.TextColumn("Modelo", disabled=True, width="medium"),
             "Cor": st.column_config.TextColumn("Cor", disabled=True, width="small"),
             "Descrição Cor": st.column_config.TextColumn("Descrição Cor", disabled=True, width="large"),
-            "Solado": st.column_config.SelectboxColumn("Solado", options=lista_solados_opcoes, width="medium"),
-            "Cor do EVA": st.column_config.SelectboxColumn("Cor do EVA", options=lista_cores_opcoes, width="large"),
+            "Solado": st.column_config.SelectboxColumn("Solado", options=opcoes_solados_grid, width="medium", required=False),
+            "Cor do EVA": st.column_config.SelectboxColumn("Cor do EVA", options=opcoes_cores_grid, width="medium", required=False),
         },
         hide_index=True,
         use_container_width=True,
-        key=f"editor_{linha_selecionada}"
+        key=f"editor_grid_v7_{linha_selecionada}"
     )
-    st.session_state[chave_df] = grid_amigavel
+    st.session_state[chave_df] = grid_editada
 
     if st.button("💾 Gravar Alterações no De-Para"):
-        dados_salvar = grid_amigavel[["Linha", "Modelo", "Cor", "Descrição Cor", "Solado", "Cor do EVA"]].copy()
-        dados_salvar = dados_salvar.rename(columns={
-            "Linha": "linha", "Modelo": "modelo", "Cor": "cor",
-            "Descrição Cor": "descricao_cor", "Solado": "nome_solado", "Cor do EVA": "cor_eva"
-        })
+        dados_salvar = grid_editada.rename(columns={
+            "Linha": "linha",
+            "Modelo": "modelo",
+            "Cor": "cor",
+            "Descrição Cor": "descricao_cor",
+            "Solado": "nome_solado",
+            "Cor do EVA": "cor_eva"
+        })[["linha", "modelo", "cor", "descricao_cor", "nome_solado", "cor_eva"]].copy()
+
         salvar_de_para(dados_salvar)
-        st.success("Configurações gravadas com sucesso no De-Para!")
-else:
-    st.warning("Nenhum dado retornado da consulta SQL ou falha na conexão.")
+        st.success("Configurações gravadas com sucesso no SQLite!")
