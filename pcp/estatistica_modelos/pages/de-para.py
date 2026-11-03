@@ -1,8 +1,18 @@
-import streamlit as st
+import os
 import pandas as pd
+import streamlit as st
 from datetime import datetime
-from utils.database import buscar_dados_base_sql
-from utils.storage import carregar_cadastros_base, carregar_de_para, salvar_de_para
+
+# Garante que utils seja encontrado caso o script seja executado isoladamente
+import sys
+from pathlib import Path
+pasta_modulo = str(Path(__file__).resolve().parent.parent if "pages" in str(Path(__file__)) else Path(__file__).resolve().parent)
+if pasta_modulo not in sys.path:
+    sys.path.insert(0, pasta_modulo)
+
+# Imports das rotinas locais
+from utils.storage import carregar_de_para, salvar_de_para, carregar_cadastros_base, carregar_dados_base_local
+from utils.database import sincronizar_dados_base_sql_para_sqlite
 
 st.title("📝 Vínculo De-Para: Modelo e Cor x Solado e Cor do EVA")
 
