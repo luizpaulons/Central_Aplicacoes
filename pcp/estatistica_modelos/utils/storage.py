@@ -2,10 +2,8 @@ import os
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-# Caminho do banco SQLite apontando para o volume mapeado (/app/pcp/dados)
-DIRETORIO_ATUAL = os.path.dirname(os.path.abspath(__file__))
-# Sobe um nível para a pasta /app/pcp/ e entra em /dados
-PASTA_DADOS = os.path.abspath(os.path.join(DIRETORIO_ATUAL, "..", "dados"))
+# Garante o caminho absoluto para a pasta dados mapeada no volume
+PASTA_DADOS = "/app/pcp/estatistica_modelo/dados"
 os.makedirs(PASTA_DADOS, exist_ok=True)
 
 CAMINHO_DB = os.path.join(PASTA_DADOS, "pcp_local.db")
