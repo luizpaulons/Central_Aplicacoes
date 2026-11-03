@@ -9,10 +9,10 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=America/Sao_Paulo
       # Credenciais do SQL Server CHB
-      - DB_HOST=SEU_IP_OU_HOST
-      - DB_PORT=1433
-      - DB_NAME=CHB
-      - DB_USER=SEU_USUARIO
-      - DB_PASSWORD=SUA_SENHA
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-1433}
+      - DB_NAME=${DB_NAME:-CHB}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
     volumes:
       - /opt/pcp_dados:/opt/pcp_dados

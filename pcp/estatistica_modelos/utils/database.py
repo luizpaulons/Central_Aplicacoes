@@ -1,11 +1,10 @@
 import os
 import urllib.parse
 import pyodbc
-import streamlit as st
 from sqlalchemy import create_engine
 
 def obter_driver_compativel():
-    """Detecta automaticamente o driver de SQL Server instalado."""
+    """Detecta automaticamente os drivers instalados no ambiente."""
     drivers_instalados = pyodbc.drivers()
     preferencias = [
         "ODBC Driver 18 for SQL Server",
@@ -18,25 +17,31 @@ def obter_driver_compativel():
     return "ODBC Driver 18 for SQL Server"
 
 def criar_engine_sql():
-    # 1. Tenta ler direto das Variáveis de Ambiente configuradas no Portainer
-    host = os.getenv("DB_HOST") or os.getenv("SQL_SERVER_HOST") or os.getenv("SERVER", "")
+    # 1. Lê das variáveis de ambiente (Portainer) ou fallback para st.secrets
+    host = os.getenv("DB_HOST") or os.getenv("SQL_SERVER_HOST", "")
     port = os.getenv("DB_PORT") or os.getenv("SQL_SERVER_PORT", "1433")
     database = os.getenv("DB_NAME") or os.getenv("SQL_SERVER_DATABASE", "CHB")
-    username = os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "")
+    username = os.getenv("DB_USER") or os.getenv("SQL_SERVER_USER", "Producao")
     password = os.getenv("DB_PASSWORD") or os.getenv("SQL_SERVER_PASSWORD", "")
-    
-    # 2. Se não estiver no ambiente, tenta ler de st.secrets como contingência
-    if not host and hasattr(st, "secrets") and "sql_server_CHB" in st.secrets:
-        sec = st.secrets["sql_server_CHB"]
-        host = sec.get("host") or sec.get("server", "")
-        port = sec.get("port", 1433)
-        database = sec.get("database", "CHB")
-        username = sec.get("username", "")
-        password = str(sec.get("password", ""))
 
-    pwd_quoted = urllib.parse.quote_plus(str(password).strip())
+    # Se ainda estiver lendo de st.secrets:
+    if not host:
+        import streamlit as st
+        if hasattr(st, "secrets") and "sql_server_CHB" in st.secrets:
+            sec = st.secrets["sql_server_CHB"]
+            host = sec.get("host") or sec.get("server", "")
+            port = sec.get("port", 1433)
+            database = sec.get("database", "CHB")
+            username = sec.get("username", "Producao")
+            password = str(sec.get("password", ""))
+
     driver_real = obter_driver_compativel()
     driver_codificado = urllib.parse.quote_plus(driver_real)
+    
+    # Tratamento obrigatório para senhas com caracteres especiais
+    pwd_quoted = urllib.parse.quote_plus(str(password).strip())
+
+    # TrustServerCertificate é aceito apenas nos drivers modernos ODBC 17/18
     flags = "&TrustServerCertificate=yes" if "ODBC Driver" in driver_real else ""
 
     conn_str = (
