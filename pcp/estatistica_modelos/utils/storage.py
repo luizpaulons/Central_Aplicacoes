@@ -1,12 +1,7 @@
 import os
-import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
-# Garante o caminho absoluto para a pasta dados mapeada no volume
-PASTA_DADOS = "/app/pcp/estatistica_modelo/dados"
-os.makedirs(PASTA_DADOS, exist_ok=True)
-
-CAMINHO_DB = os.path.join(PASTA_DADOS, "pcp_local.db")
+CAMINHO_DB = "/opt/pcp_dados/pcp_local.db"
 ENGINE_SQLITE = create_engine(f"sqlite:///{CAMINHO_DB}", echo=False)
 
 
