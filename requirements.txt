@@ -7,3 +7,5 @@ reportlab
 python-dateutil
 sqlalchemy
 python-dotenv
+odfpy
+pypdf
