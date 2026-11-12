@@ -35,6 +35,7 @@ paginas_financeiro = [
         icon="🏭",
         url_path="conciliador-fatura",
         # visibility="hidden",
+        )
 ]
 
 # --- 3. PÁGINA DO MÓDULO PCP ---
