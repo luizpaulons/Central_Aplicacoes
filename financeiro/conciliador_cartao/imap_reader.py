@@ -5,27 +5,32 @@ import email.utils
 import re
 import os
 import html
+from pathlib import Path
 from dotenv import load_dotenv
 
 try:
     from pypdf import PdfReader
+
     PYPDF_DISPONIVEL = True
 except ImportError:
     PYPDF_DISPONIVEL = False
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
-NOTAS_DIR = "notas_fiscais"
+NOTAS_DIR = str(BASE_DIR / "notas_fiscais")
 os.makedirs(NOTAS_DIR, exist_ok=True)
 
 
 def obter_configuracoes_env():
+    # Recarrega o .env da pasta da aplicação caso tenha sido atualizado
+    load_dotenv(BASE_DIR / ".env", override=True)
     return {
         "host": os.getenv("IMAP_HOST", ""),
         "port": int(os.getenv("IMAP_PORT", 993)),
         "user": os.getenv("IMAP_USER", ""),
         "password": os.getenv("IMAP_PASSWORD", ""),
-        "folder": os.getenv("IMAP_FOLDER", "Cartao de credito").strip('"')
+        "folder": os.getenv("IMAP_FOLDER", "Cartao de credito").strip('"'),
     }
 
 
@@ -47,8 +52,8 @@ def limpar_nome_arquivo(nome):
         return "anexo_sem_nome.pdf"
     nome = decodificar_texto(nome)
     nome = nome.replace("\r", " ").replace("\n", " ").replace("\t", " ")
-    nome = re.sub(r'[<>:"/\\|?*]', '_', nome)
-    return re.sub(r'\s+', ' ', nome).strip()
+    nome = re.sub(r'[<>:"/\\|?*]', "_", nome)
+    return re.sub(r"\s+", " ", nome).strip()
 
 
 def extrair_email_puro(header_from):
@@ -85,20 +90,19 @@ def extrair_numero_e_tipo_nf(caminho_pdf, nome_arquivo=""):
     """
     if nome_arquivo:
         # Padrão 1: Contém explicitamente NFSe / NFS-e seguido do número
-        # Ex: NFSe-202600002966737.pdf, NFSe_202600002966737.pdf, NFSe202600002966737.pdf
-        m_nfse_direto = re.search(r'NFS[eE]?[\s\-_]*(\d+)', nome_arquivo, re.IGNORECASE)
+        m_nfse_direto = re.search(r"NFS[eE]?[\s\-_]*(\d+)", nome_arquivo, re.IGNORECASE)
         if m_nfse_direto:
             num = m_nfse_direto.group(1).lstrip("0")
             return (num if num else m_nfse_direto.group(1)), True
 
-        # Padrão 2: Prefixo de CNPJ seguido do número da NFSe (ex: 72381189000110_83747.pdf ou 72381189000110_202600002966737.pdf)
-        m_cnpj_num = re.search(r'^\d{14}_(\d+)\.pdf$', nome_arquivo, re.IGNORECASE)
+        # Padrão 2: Prefixo de CNPJ seguido do número da NFSe
+        m_cnpj_num = re.search(r"^\d{14}_(\d+)\.pdf$", nome_arquivo, re.IGNORECASE)
         if m_cnpj_num:
             num = m_cnpj_num.group(1).lstrip("0")
             return (num if num else m_cnpj_num.group(1)), True
 
         # Padrão 3: Chave de 44 dígitos no nome (DANFE / NFe)
-        chaves_nome = re.findall(r'\b\d{44}\b', re.sub(r'\D', '', nome_arquivo))
+        chaves_nome = re.findall(r"\b\d{44}\b", re.sub(r"\D", "", nome_arquivo))
         if chaves_nome:
             return chaves_nome[0][25:34].lstrip("0") or "0", False
 
@@ -114,25 +118,27 @@ def extrair_numero_e_tipo_nf(caminho_pdf, nome_arquivo=""):
                 texto += (p.extract_text() or "") + "\n"
 
             # DANFE / Chave SEFAZ de 44 dígitos (11 blocos de 4 dígitos)
-            m_blocos = re.search(r'(?:\b|\D)(\d{4}(?:\s+\d{4}){10})(?:\b|\D)', texto)
+            m_blocos = re.search(r"(?:\b|\D)(\d{4}(?:\s+\d{4}){10})(?:\b|\D)", texto)
             if m_blocos:
-                chave = re.sub(r'\D', '', m_blocos.group(1))
+                chave = re.sub(r"\D", "", m_blocos.group(1))
                 if len(chave) == 44:
                     return chave[25:34].lstrip("0") or "0", False
 
             # Chave após "CHAVE DE ACESSO"
-            m_chave_txt = re.search(r'CHAVE\s+DE\s+ACESSO[\s\S]{0,80}?([\d\s]{44,70})', texto, re.IGNORECASE)
+            m_chave_txt = re.search(
+                r"CHAVE\s+DE\s+ACESSO[\s\S]{0,80}?([\d\s]{44,70})", texto, re.IGNORECASE
+            )
             if m_chave_txt:
-                cand = re.sub(r'\D', '', m_chave_txt.group(1))
+                cand = re.sub(r"\D", "", m_chave_txt.group(1))
                 if len(cand) >= 44:
                     return cand[:44][25:34].lstrip("0") or "0", False
 
-            apenas_numeros = re.sub(r'\D', '', texto)
-            for m in re.finditer(r'(?=((\d{20})(55|65)(\d{22})))', apenas_numeros):
+            apenas_numeros = re.sub(r"\D", "", texto)
+            for m in re.finditer(r"(?=((\d{20})(55|65)(\d{22})))", apenas_numeros):
                 chave_valida = m.group(1)
                 return chave_valida[25:34].lstrip("0") or "0", False
 
-            chaves_gerais = re.findall(r'\d{44}', apenas_numeros)
+            chaves_gerais = re.findall(r"\d{44}", apenas_numeros)
             if chaves_gerais:
                 return chaves_gerais[0][25:34].lstrip("0") or "0", False
         except Exception:
@@ -155,9 +161,9 @@ def extrair_dados_email(corpo_texto):
         "vencimento": [],
         "valor_nota": 0.0,
         "desconto": 0.0,
-        "valor_pago": 0.0
+        "valor_pago": 0.0,
     }
-    
+
     texto_limpo = re.sub(r"<[^>]+>", " ", corpo_texto)
     texto_limpo = html.unescape(texto_limpo)
     texto_limpo = re.sub(r"[ \t\xa0]+", " ", texto_limpo)
@@ -165,15 +171,17 @@ def extrair_dados_email(corpo_texto):
     m_tipo = re.search(r"Tipo\s*:\s*(Fiscal|Gerencial)", texto_limpo, re.IGNORECASE)
     if m_tipo:
         dados["tipo"] = m_tipo.group(1).capitalize()
-        
-    m_compra = re.search(r"Compra\s*dia\s*:\s*(\d{2}/\d{2}/\d{2,4})", texto_limpo, re.IGNORECASE)
+
+    m_compra = re.search(
+        r"Compra\s*dia\s*:\s*(\d{2}/\d{2}/\d{2,4})", texto_limpo, re.IGNORECASE
+    )
     if m_compra:
         dados["data_compra"] = m_compra.group(1)
-        
+
     m_parc = re.search(r"Parcelas?\s*:\s*(\d+)", texto_limpo, re.IGNORECASE)
     if m_parc:
         dados["parcelas"] = int(m_parc.group(1))
-        
+
     m_venc = re.findall(r"\b(\d{2}/\d{2}/\d{4})\b", texto_limpo)
     if m_venc:
         dados["vencimento"] = m_venc
@@ -188,38 +196,53 @@ def extrair_dados_email(corpo_texto):
         except ValueError:
             return 0.0
 
-    m_vnota = re.search(r"Valor\s+da\s+nota\s*:\s*(?:R\$\s*)?([\d\.,]+)", texto_limpo, re.IGNORECASE)
+    m_vnota = re.search(
+        r"Valor\s+da\s+nota\s*:\s*(?:R\$\s*)?([\d\.,]+)", texto_limpo, re.IGNORECASE
+    )
     if m_vnota:
         dados["valor_nota"] = converter_valor(m_vnota.group(1))
 
-    m_desc = re.search(r"Desconto\s*:\s*(?:R\$\s*)?([\d\.,]+)", texto_limpo, re.IGNORECASE)
+    m_desc = re.search(
+        r"Desconto\s*:\s*(?:R\$\s*)?([\d\.,]+)", texto_limpo, re.IGNORECASE
+    )
     if m_desc:
         dados["desconto"] = converter_valor(m_desc.group(1))
 
     m_pago = re.search(r"Pago\s*:\s*(?:R\$\s*)?([\d\.,]+)", texto_limpo, re.IGNORECASE)
     if m_pago:
         dados["valor_pago"] = converter_valor(m_pago.group(1))
-        
+
     return dados
 
 
-def buscar_emails_imap(host, porta, usuario, senha, pasta_nome="Cartao de credito", data_vencimento_fatura=""):
+def buscar_emails_imap(
+    host,
+    porta,
+    usuario,
+    senha,
+    pasta_nome="Cartao de credito",
+    data_vencimento_fatura="",
+):
     compras_email = []
-    
+
     try:
         mail = imaplib.IMAP4_SSL(host, port=porta)
         mail.login(usuario, senha)
-        
+
         tentativas = [
-            f'"{pasta_nome}"', pasta_nome, f'"INBOX/{pasta_nome}"',
-            f"INBOX/{pasta_nome}", f'"INBOX.{pasta_nome}"', f"INBOX.{pasta_nome}"
+            f'"{pasta_nome}"',
+            pasta_nome,
+            f'"INBOX/{pasta_nome}"',
+            f"INBOX/{pasta_nome}",
+            f'"INBOX.{pasta_nome}"',
+            f"INBOX.{pasta_nome}",
         ]
         selecionou = False
         for p in tentativas:
             if mail.select(p)[0] == "OK":
                 selecionou = True
                 break
-                
+
         if not selecionou:
             mail.logout()
             return False, f"Pasta '{pasta_nome}' não encontrada no servidor."
@@ -236,14 +259,17 @@ def buscar_emails_imap(host, porta, usuario, senha, pasta_nome="Cartao de credit
             msg = email.message_from_bytes(msg_data[0][1])
             assunto = decodificar_texto(msg.get("Subject", ""))
             remetente = extrair_email_puro(decodificar_texto(msg.get("From", "")))
-            
+
             corpo = ""
             partes_anexos = []
-            
+
             if msg.is_multipart():
                 for part in msg.walk():
                     cdisp = str(part.get("Content-Disposition"))
-                    if part.get_content_type() in ["text/plain", "text/html"] and "attachment" not in cdisp:
+                    if (
+                        part.get_content_type() in ["text/plain", "text/html"]
+                        and "attachment" not in cdisp
+                    ):
                         payload = part.get_payload(decode=True)
                         if payload:
                             corpo += payload.decode("utf-8", errors="ignore") + "\n"
@@ -257,9 +283,11 @@ def buscar_emails_imap(host, porta, usuario, senha, pasta_nome="Cartao de credit
                     corpo = payload.decode("utf-8", errors="ignore")
 
             dados = extrair_dados_email(corpo)
-            
+
             # Prefixo AAMMDD: pega da fatura ou da data no corpo do e-mail
-            venc_ref = data_vencimento_fatura or (dados["vencimento"][0] if dados["vencimento"] else "")
+            venc_ref = data_vencimento_fatura or (
+                dados["vencimento"][0] if dados["vencimento"] else ""
+            )
             prefixo_data = formatar_vencimento_aammdd(venc_ref)
 
             lista_anexos = []
@@ -286,7 +314,7 @@ def buscar_emails_imap(host, porta, usuario, senha, pasta_nome="Cartao de credit
                         os.remove(caminho_final)
                     except:
                         pass
-                
+
                 os.replace(caminho_temp, caminho_final)
                 lista_anexos.append(nome_padronizado)
                 lista_nfs.append(num_nf)
@@ -298,7 +326,7 @@ def buscar_emails_imap(host, porta, usuario, senha, pasta_nome="Cartao de credit
             dados["numeros_nf"] = lista_nfs
             dados["vinculado"] = False
             compras_email.append(dados)
-            
+
         mail.logout()
         return True, compras_email
     except Exception as e:
