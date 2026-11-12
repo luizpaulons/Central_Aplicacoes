@@ -45,7 +45,7 @@ paginas_pcp = [
         title="Planos em Elaboração",
         icon="🏭",
         url_path="planos-elaboração",
-        visibility="hidden",
+        # visibility="hidden",
     ),
 ]
 
