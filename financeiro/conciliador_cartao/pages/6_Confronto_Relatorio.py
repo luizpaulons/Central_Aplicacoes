@@ -106,13 +106,20 @@ with col_fat:
         st.warning("Nenhuma fatura encontrada. Importe uma primeiro.")
         venc_selecionado = None
 
+# Usa prioritariamente os lançamentos em memória da sessão (iguais aos da tela Conciliar Fatura)
 lancamentos_fatura = []
 if venc_selecionado:
-    status_db, dados_salvos = database.carregar_fatura(venc_selecionado)
-    lancamentos_fatura = dados_salvos or []
+    if (
+        st.session_state.get("lancamentos")
+        and st.session_state.get("vencimento_atual") == venc_selecionado
+    ):
+        lancamentos_fatura = st.session_state["lancamentos"]
+    else:
+        status_db, dados_salvos = database.carregar_fatura(venc_selecionado)
+        lancamentos_fatura = dados_salvos or []
 
 # 2. Upload com persistência em st.session_state
-col_up, col_limpar = st.columns([3, 1])
+col_up, col_atualizar, col_limpar = st.columns([2.6, 1.2, 1.2])
 with col_up:
     upload_relatorio = st.file_uploader(
         "Upload do Relatório CHB (.xlsx - Coluna D: Nota | Coluna P: Saldo)",
@@ -120,10 +127,17 @@ with col_up:
         key="uploader_relatorio_confronto",
     )
 
+with col_atualizar:
+    st.write("")
+    st.write("")
+    if st.button("🔄 Atualizar Confronto"):
+        st.session_state.pop("confronto_resultado", None)
+        st.rerun()
+
 with col_limpar:
     st.write("")
     st.write("")
-    if st.button("🗑 Limpar Relatório da Sessão"):
+    if st.button("🗑 Limpar Relatório"):
         st.session_state.pop("relatorio_confronto_bytes", None)
         st.session_state.pop("confronto_resultado", None)
         st.rerun()
@@ -138,9 +152,23 @@ bytes_salvos = st.session_state.get("relatorio_confronto_bytes")
 
 # 3. Processamento e Exibição do Confronto
 if bytes_salvos and lancamentos_fatura:
+    # Cria assinatura dos dados da fatura para recalcular automaticamente se algo mudou na tela 1
+    assinatura_fatura = str(
+        [
+            (
+                x.get("fornecedor"),
+                x.get("valor"),
+                x.get("numeros_nf"),
+                x.get("comprador"),
+            )
+            for x in lancamentos_fatura
+        ]
+    )
+
     if (
         "confronto_resultado" not in st.session_state
         or st.session_state.get("confronto_vencimento") != venc_selecionado
+        or st.session_state.get("confronto_assinatura") != assinatura_fatura
     ):
         itens_rel = extrair_dados_relatorio(bytes_salvos)
         rel_disponiveis = list(itens_rel)
@@ -168,47 +196,37 @@ if bytes_salvos and lancamentos_fatura:
                 email_l = item["email_remetente"].lower().strip()
                 comprador_fat = mapa_compradores.get(email_l, "Não identificado")
 
-            candidatos_nf = set()
-
-            # Higienização de notas registradas no item
+            # Mantém exatamente as mesmas notas exibidas na coluna "Nº da NF" da tela Conciliar Fatura
+            notas_oficiais = []
             for n in item.get("numeros_nf", []):
-                if not n or str(n).strip() in ["-", "None"]:
-                    continue
                 n_str = str(n).strip()
-                m_pref = re.match(r"^\d{6}(.+)$", n_str)
-                if m_pref and len(n_str) > 6:
-                    n_str = m_pref.group(1)
-                nl = limpar_numero_nf(n_str)
-                if nl:
-                    candidatos_nf.add(nl)
-
-            # Higienização de notas nos nomes dos anexos
-            anexos = item.get("anexos_nf", [])
-            if item.get("anexo_nf") and item.get("anexo_nf") not in anexos:
-                anexos.append(item["anexo_nf"])
-
-            for a in anexos:
-                if not a:
+                if not n_str or n_str in ["-", "None"]:
                     continue
-                nome_limpo = re.sub(r"^\d{6}[-_]?", "", str(a).strip())
-                m_arq = re.search(
-                    r"(?:NFSe?|DANFE|NF)[_-]?(\d+)", nome_limpo, re.IGNORECASE
-                )
-                if m_arq:
-                    nl = limpar_numero_nf(m_arq.group(1))
-                    if nl:
-                        candidatos_nf.add(nl)
-                else:
-                    apenas_dig = re.sub(r"\D", "", nome_limpo.split(".")[0])
-                    if apenas_dig and 1 <= len(apenas_dig) <= 9:
-                        nl = limpar_numero_nf(apenas_dig)
-                        if nl:
-                            candidatos_nf.add(nl)
+                nl = limpar_numero_nf(n_str)
+                if nl and nl not in notas_oficiais:
+                    notas_oficiais.append(nl)
 
+            # Fallback apenas se numeros_nf estiver vazio, mas houver PDFs anexados
+            if not notas_oficiais:
+                anexos = item.get("anexos_nf", [])
+                if item.get("anexo_nf") and item["anexo_nf"] not in anexos:
+                    anexos.append(item["anexo_nf"])
+
+                for a in anexos:
+                    if not a:
+                        continue
+                    num_extraido = imap_reader.extrair_numero_nf_pdf(
+                        os.path.join(imap_reader.NOTAS_DIR, a), a
+                    )
+                    nl = limpar_numero_nf(num_extraido)
+                    if nl and nl not in notas_oficiais:
+                        notas_oficiais.append(nl)
+
+            candidatos_nf = set(notas_oficiais)
             matches_encontrados = []
             tipo_match = ""
 
-            # 1. Confronto por NF (Coluna D) - Captura TODAS as notas vinculadas à mesma compra para somar
+            # 1. Confronto por NF (Coluna D) - Captura todas as notas vinculadas à mesma compra para somar
             if candidatos_nf:
                 for r in list(rel_disponiveis):
                     if r["nota"] in candidatos_nf:
@@ -231,6 +249,8 @@ if bytes_salvos and lancamentos_fatura:
                         rel_disponiveis.remove(r)
                         tipo_match = f"Valor correspondente (~R$ {val_fat:,.2f})"
                         break
+
+            nf_fatura_exibicao = ", ".join(notas_oficiais) if notas_oficiais else "-"
 
             if matches_encontrados:
                 val_chb_somado = round(sum(m["valor"] for m in matches_encontrados), 2)
@@ -258,11 +278,7 @@ if bytes_salvos and lancamentos_fatura:
                         "Fornecedor Fatura": forn_fat,  # Col 2
                         "Comprador": comprador_fat,  # Col 3
                         "Fornecedor CHB": fornecedores_chb,  # Col 4
-                        "NF Fatura": (
-                            ", ".join(sorted(list(candidatos_nf)))
-                            if candidatos_nf
-                            else "-"
-                        ),  # Col 5
+                        "NF Fatura": nf_fatura_exibicao,  # Col 5
                         "Valor Fatura": f"R$ {val_fat:,.2f}",  # Col 6
                         "NF CHB": notas_chb,  # Col 7
                         "Divergência": (
@@ -282,8 +298,8 @@ if bytes_salvos and lancamentos_fatura:
                         "Comprador": comprador_fat,
                         "Valor Fatura": f"R$ {val_fat:,.2f}",
                         "NF Fatura": (
-                            ", ".join(sorted(list(candidatos_nf)))
-                            if candidatos_nf
+                            nf_fatura_exibicao
+                            if nf_fatura_exibicao != "-"
                             else "Sem NF vinculada"
                         ),
                         "Status na Fatura": item.get("status", "PENDENTE"),
@@ -301,6 +317,7 @@ if bytes_salvos and lancamentos_fatura:
             "qtd_divergencias": qtd_divergencias,
         }
         st.session_state["confronto_vencimento"] = venc_selecionado
+        st.session_state["confronto_assinatura"] = assinatura_fatura
 
     res = st.session_state["confronto_resultado"]
     encontrados = res["encontrados"]
@@ -351,7 +368,6 @@ if bytes_salvos and lancamentos_fatura:
 
     with tab1:
         if encontrados:
-            # Filtro para mostrar todos ou somente divergentes
             qtd_div = res["qtd_divergencias"]
             qtd_exatos = len(encontrados) - qtd_div
 
