@@ -148,9 +148,10 @@ if bytes_salvos and lancamentos_fatura:
         nao_encontrados = []
 
         soma_fat_total = 0.0
-        soma_fat_localizados = 0.0
         soma_chb_localizados = 0.0
         soma_fat_nao_localizados = 0.0
+        soma_divergencias = 0.0
+        qtd_divergencias = 0
 
         mapa_compradores = database.listar_compradores()
 
@@ -243,12 +244,13 @@ if bytes_salvos and lancamentos_fatura:
                     )
                 )
                 notas_chb = ", ".join([m["nota_original"] for m in matches_encontrados])
-                diff = abs(val_fat - val_chb_somado)
+                diff = round(abs(val_fat - val_chb_somado), 2)
 
-                soma_fat_localizados += val_fat
                 soma_chb_localizados += val_chb_somado
+                if diff > 0.009:
+                    soma_divergencias += diff
+                    qtd_divergencias += 1
 
-                # Ordem exata das colunas (Col 4 = Fornecedor CHB | Col 7 = NF CHB | Col 9 = Valor CHB)
                 encontrados.append(
                     {
                         "Data": data_fat,  # Col 1
@@ -291,9 +293,10 @@ if bytes_salvos and lancamentos_fatura:
             "nao_encontrados": nao_encontrados,
             "total_fatura": len(lancamentos_fatura),
             "soma_fat_total": round(soma_fat_total, 2),
-            "soma_fat_localizados": round(soma_fat_localizados, 2),
             "soma_chb_localizados": round(soma_chb_localizados, 2),
             "soma_fat_nao_localizados": round(soma_fat_nao_localizados, 2),
+            "soma_divergencias": round(soma_divergencias, 2),
+            "qtd_divergencias": qtd_divergencias,
         }
         st.session_state["confronto_vencimento"] = venc_selecionado
 
@@ -301,8 +304,8 @@ if bytes_salvos and lancamentos_fatura:
     encontrados = res["encontrados"]
     nao_encontrados = res["nao_encontrados"]
 
-    # Métricas principais com os somatórios solicitados
-    m1, m2, m3 = st.columns(3)
+    # Métricas principais (4 colunas)
+    m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric(
             label="Itens na Fatura",
@@ -314,7 +317,7 @@ if bytes_salvos and lancamentos_fatura:
         st.metric(
             label="Localizados no CHB",
             value=f"{len(encontrados)} itens",
-            delta=f"Fatura: R$ {res['soma_fat_localizados']:,.2f} | CHB: R$ {res['soma_chb_localizados']:,.2f}",
+            delta=f"Total CHB: R$ {res['soma_chb_localizados']:,.2f}",
         )
     with m3:
         st.metric(
@@ -322,6 +325,17 @@ if bytes_salvos and lancamentos_fatura:
             value=f"{len(nao_encontrados)} itens",
             delta=f"Total Fatura: R$ {res['soma_fat_nao_localizados']:,.2f}",
             delta_color="inverse",
+        )
+    with m4:
+        st.metric(
+            label="Total Divergências",
+            value=f"R$ {res['soma_divergencias']:,.2f}",
+            delta=(
+                f"{res['qtd_divergencias']} item(ns) divergente(s)"
+                if res["qtd_divergencias"] > 0
+                else "Sem divergências ✔"
+            ),
+            delta_color="inverse" if res["qtd_divergencias"] > 0 else "normal",
         )
 
     st.divider()
