@@ -106,7 +106,6 @@ with col_fat:
         st.warning("Nenhuma fatura encontrada. Importe uma primeiro.")
         venc_selecionado = None
 
-# Usa prioritariamente os lançamentos em memória da sessão (iguais aos da tela Conciliar Fatura)
 lancamentos_fatura = []
 if venc_selecionado:
     if (
@@ -152,7 +151,6 @@ bytes_salvos = st.session_state.get("relatorio_confronto_bytes")
 
 # 3. Processamento e Exibição do Confronto
 if bytes_salvos and lancamentos_fatura:
-    # Cria assinatura dos dados da fatura para recalcular automaticamente se algo mudou na tela 1
     assinatura_fatura = str(
         [
             (
@@ -183,6 +181,8 @@ if bytes_salvos and lancamentos_fatura:
 
         mapa_compradores = database.listar_compradores()
 
+        # Prepara os itens da fatura extraindo primeiro as notas oficiais
+        itens_preparados = []
         for item in lancamentos_fatura:
             val_fat = round(converter_para_float(item.get("valor", 0.0)), 2)
             soma_fat_total += val_fat
@@ -196,7 +196,6 @@ if bytes_salvos and lancamentos_fatura:
                 email_l = item["email_remetente"].lower().strip()
                 comprador_fat = mapa_compradores.get(email_l, "Não identificado")
 
-            # Mantém exatamente as mesmas notas exibidas na coluna "Nº da NF" da tela Conciliar Fatura
             notas_oficiais = []
             for n in item.get("numeros_nf", []):
                 n_str = str(n).strip()
@@ -206,12 +205,10 @@ if bytes_salvos and lancamentos_fatura:
                 if nl and nl not in notas_oficiais:
                     notas_oficiais.append(nl)
 
-            # Fallback apenas se numeros_nf estiver vazio, mas houver PDFs anexados
             if not notas_oficiais:
                 anexos = item.get("anexos_nf", [])
                 if item.get("anexo_nf") and item["anexo_nf"] not in anexos:
                     anexos.append(item["anexo_nf"])
-
                 for a in anexos:
                     if not a:
                         continue
@@ -222,34 +219,60 @@ if bytes_salvos and lancamentos_fatura:
                     if nl and nl not in notas_oficiais:
                         notas_oficiais.append(nl)
 
-            candidatos_nf = set(notas_oficiais)
-            matches_encontrados = []
-            tipo_match = ""
+            itens_preparados.append(
+                {
+                    "raw": item,
+                    "val_fat": val_fat,
+                    "forn_fat": forn_fat,
+                    "data_fat": data_fat,
+                    "comprador_fat": comprador_fat,
+                    "notas_oficiais": notas_oficiais,
+                    "matches": [],
+                }
+            )
 
-            # 1. Confronto por NF (Coluna D) - Captura todas as notas vinculadas à mesma compra para somar
+        # ETAPA 1: Confronto direto por número de NF (captura todas as notas que batem pelo número)
+        for prep in itens_preparados:
+            candidatos_nf = set(prep["notas_oficiais"])
             if candidatos_nf:
                 for r in list(rel_disponiveis):
                     if r["nota"] in candidatos_nf:
-                        matches_encontrados.append(r)
+                        prep["matches"].append(r)
                         rel_disponiveis.remove(r)
 
-            if matches_encontrados:
-                notas_ident = [m["nota"] for m in matches_encontrados]
-                if len(notas_ident) > 1:
-                    tipo_match = (
-                        f"Soma de {len(notas_ident)} notas ({', '.join(notas_ident)})"
-                    )
-                else:
-                    tipo_match = f"Nota {notas_ident[0]} identificada"
-            else:
-                # 2. Confronto por Valor (Coluna P) caso não tenha encontrado pela NF
+        # ETAPA 2: Para compras com múltiplas notas onde só parte foi localizada pelo número,
+        # tenta fechar o saldo restante buscando pelo valor exato da diferença nos títulos livres do CHB
+        for prep in itens_preparados:
+            qtd_notas_fat = len(prep["notas_oficiais"])
+            qtd_notas_chb = len(prep["matches"])
+            if qtd_notas_fat > 1 and 0 < qtd_notas_chb < qtd_notas_fat:
+                val_ja_achado = round(sum(m["valor"] for m in prep["matches"]), 2)
+                saldo_restante = round(prep["val_fat"] - val_ja_achado, 2)
+                if saldo_restante > 0.05:
+                    for r in list(rel_disponiveis):
+                        if abs(saldo_restante - r["valor"]) <= 0.08:
+                            r["casado_por_saldo"] = True
+                            prep["matches"].append(r)
+                            rel_disponiveis.remove(r)
+                            break
+
+        # ETAPA 3: Para itens sem nenhuma nota localizada ainda, busca por valor total exato
+        for prep in itens_preparados:
+            if not prep["matches"]:
                 for r in list(rel_disponiveis):
-                    if abs(val_fat - r["valor"]) <= 0.08:
-                        matches_encontrados.append(r)
+                    if abs(prep["val_fat"] - r["valor"]) <= 0.08:
+                        prep["matches"].append(r)
                         rel_disponiveis.remove(r)
-                        tipo_match = f"Valor correspondente (~R$ {val_fat:,.2f})"
                         break
 
+        # ETAPA 4: Monta tabelas e diagnósticos detalhados
+        for prep in itens_preparados:
+            val_fat = prep["val_fat"]
+            forn_fat = prep["forn_fat"]
+            data_fat = prep["data_fat"]
+            comprador_fat = prep["comprador_fat"]
+            notas_oficiais = prep["notas_oficiais"]
+            matches_encontrados = prep["matches"]
             nf_fatura_exibicao = ", ".join(notas_oficiais) if notas_oficiais else "-"
 
             if matches_encontrados:
@@ -266,6 +289,25 @@ if bytes_salvos and lancamentos_fatura:
                 notas_chb = ", ".join([m["nota_original"] for m in matches_encontrados])
                 diff = round(abs(val_fat - val_chb_somado), 2)
                 eh_divergente = diff > 0.009
+
+                notas_achadas_set = {m["nota"] for m in matches_encontrados}
+                notas_faltantes = [
+                    n for n in notas_oficiais if n not in notas_achadas_set
+                ]
+
+                # Define o diagnóstico claro na coluna Critério
+                if len(notas_oficiais) > 1 and notas_faltantes and eh_divergente:
+                    tipo_match = f"⚠️ Parcial ({len(matches_encontrados)}/{len(notas_oficiais)} NFs) - Faltou NF: {', '.join(notas_faltantes)}"
+                elif any(m.get("casado_por_saldo") for m in matches_encontrados):
+                    tipo_match = f"Soma de {len(matches_encontrados)} notas (1 por NF + 1 por saldo restante)"
+                elif len(matches_encontrados) > 1:
+                    tipo_match = f"Soma de {len(matches_encontrados)} notas ({', '.join(notas_achadas_set)})"
+                elif notas_oficiais and any(
+                    n in notas_achadas_set for n in notas_oficiais
+                ):
+                    tipo_match = f"Nota {list(notas_achadas_set)[0]} identificada"
+                else:
+                    tipo_match = f"Valor correspondente (~R$ {val_fat:,.2f})"
 
                 soma_chb_localizados += val_chb_somado
                 if eh_divergente:
@@ -286,7 +328,8 @@ if bytes_salvos and lancamentos_fatura:
                         ),  # Col 8
                         "Valor CHB": f"R$ {val_chb_somado:,.2f}",  # Col 9
                         "Critério": tipo_match,  # Col 10
-                        "_divergente": eh_divergente,  # Flag interna para filtro
+                        "_divergente": eh_divergente,
+                        "_nf_faltante": bool(notas_faltantes and eh_divergente),
                     }
                 )
             else:
@@ -302,7 +345,7 @@ if bytes_salvos and lancamentos_fatura:
                             if nf_fatura_exibicao != "-"
                             else "Sem NF vinculada"
                         ),
-                        "Status na Fatura": item.get("status", "PENDENTE"),
+                        "Status na Fatura": prep["raw"].get("status", "PENDENTE"),
                     }
                 )
 
@@ -370,16 +413,20 @@ if bytes_salvos and lancamentos_fatura:
         if encontrados:
             qtd_div = res["qtd_divergencias"]
             qtd_exatos = len(encontrados) - qtd_div
+            qtd_nf_faltante = sum(
+                1 for x in encontrados if x.get("_nf_faltante", False)
+            )
 
             rotulos_filtro_chb = {
                 "TODOS": f"Todos ({len(encontrados)})",
                 "DIVERGENTES": f"⚠️ Somente Divergentes ({qtd_div})",
+                "NF_FALTANTE": f"📄 NFs Faltando no CHB ({qtd_nf_faltante})",
                 "EXATOS": f"✔ Exatos ({qtd_exatos})",
             }
 
             filtro_chb = st.radio(
                 "Filtrar itens localizados:",
-                options=["TODOS", "DIVERGENTES", "EXATOS"],
+                options=["TODOS", "DIVERGENTES", "NF_FALTANTE", "EXATOS"],
                 format_func=lambda x: rotulos_filtro_chb[x],
                 key="filtro_confronto_chb",
                 horizontal=True,
@@ -387,6 +434,10 @@ if bytes_salvos and lancamentos_fatura:
 
             if filtro_chb == "DIVERGENTES":
                 lista_exibicao = [x for x in encontrados if x.get("_divergente", False)]
+            elif filtro_chb == "NF_FALTANTE":
+                lista_exibicao = [
+                    x for x in encontrados if x.get("_nf_faltante", False)
+                ]
             elif filtro_chb == "EXATOS":
                 lista_exibicao = [
                     x for x in encontrados if not x.get("_divergente", False)
@@ -396,7 +447,7 @@ if bytes_salvos and lancamentos_fatura:
 
             if lista_exibicao:
                 df_ok = pd.DataFrame(lista_exibicao).drop(
-                    columns=["_divergente"], errors="ignore"
+                    columns=["_divergente", "_nf_faltante"], errors="ignore"
                 )
                 df_ok.index = range(1, len(df_ok) + 1)
                 st.dataframe(df_ok, use_container_width=True)
