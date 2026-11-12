@@ -38,6 +38,25 @@ def converter_para_float(valor_obj):
     return float(nums[0]) if nums else 0.0
 
 
+def obter_parcela_formatada(item):
+    """Retorna a parcela no formato '1/1' para à vista ou 'X/Y' para parceladas."""
+    parc = str(item.get("parcela") or "").strip()
+    if parc and "/" in parc:
+        partes = parc.split("/")
+        if len(partes) == 2 and partes[0].isdigit() and partes[1].isdigit():
+            return f"{int(partes[0])}/{int(partes[1])}"
+
+    forn = str(item.get("fornecedor") or item.get("descricao") or "").upper()
+    m_parc = re.search(r"PARC\s*(\d{1,2})/(\d{1,2})", forn, re.IGNORECASE)
+    if not m_parc:
+        m_parc = re.search(r"(?:AUTO)?(\d{1,2})D(\d{1,2})", forn, re.IGNORECASE)
+
+    if m_parc:
+        return f"{int(m_parc.group(1))}/{int(m_parc.group(2))}"
+
+    return "1/1"
+
+
 def extrair_dados_relatorio(arquivo_origem):
     if isinstance(arquivo_origem, bytes):
         fonte_dados = io.BytesIO(arquivo_origem)
@@ -158,6 +177,7 @@ if bytes_salvos and lancamentos_fatura:
                 x.get("valor"),
                 x.get("numeros_nf"),
                 x.get("comprador"),
+                x.get("parcela"),
             )
             for x in lancamentos_fatura
         ]
@@ -181,13 +201,14 @@ if bytes_salvos and lancamentos_fatura:
 
         mapa_compradores = database.listar_compradores()
 
-        # Prepara os itens da fatura extraindo primeiro as notas oficiais
+        # Prepara os itens da fatura extraindo primeiro as notas oficiais e parcela
         itens_preparados = []
         for item in lancamentos_fatura:
             val_fat = round(converter_para_float(item.get("valor", 0.0)), 2)
             soma_fat_total += val_fat
             forn_fat = item.get("fornecedor") or item.get("descricao", "")
             data_fat = item.get("data_fatura", "")
+            parcela_fat = obter_parcela_formatada(item)
 
             comprador_fat = item.get("comprador", "Não identificado")
             if comprador_fat in ["Não identificado", ""] and item.get(
@@ -224,6 +245,7 @@ if bytes_salvos and lancamentos_fatura:
                     "raw": item,
                     "val_fat": val_fat,
                     "forn_fat": forn_fat,
+                    "parcela_fat": parcela_fat,
                     "data_fat": data_fat,
                     "comprador_fat": comprador_fat,
                     "notas_oficiais": notas_oficiais,
@@ -231,7 +253,7 @@ if bytes_salvos and lancamentos_fatura:
                 }
             )
 
-        # ETAPA 1: Confronto direto por número de NF (captura todas as notas que batem pelo número)
+        # ETAPA 1: Confronto direto por número de NF
         for prep in itens_preparados:
             candidatos_nf = set(prep["notas_oficiais"])
             if candidatos_nf:
@@ -240,8 +262,7 @@ if bytes_salvos and lancamentos_fatura:
                         prep["matches"].append(r)
                         rel_disponiveis.remove(r)
 
-        # ETAPA 2: Para compras com múltiplas notas onde só parte foi localizada pelo número,
-        # tenta fechar o saldo restante buscando pelo valor exato da diferença nos títulos livres do CHB
+        # ETAPA 2: Busca complementar pelo saldo restante em compras com múltiplas notas
         for prep in itens_preparados:
             qtd_notas_fat = len(prep["notas_oficiais"])
             qtd_notas_chb = len(prep["matches"])
@@ -256,7 +277,7 @@ if bytes_salvos and lancamentos_fatura:
                             rel_disponiveis.remove(r)
                             break
 
-        # ETAPA 3: Para itens sem nenhuma nota localizada ainda, busca por valor total exato
+        # ETAPA 3: Confronto por valor total exato para itens sem NF casada
         for prep in itens_preparados:
             if not prep["matches"]:
                 for r in list(rel_disponiveis):
@@ -265,10 +286,11 @@ if bytes_salvos and lancamentos_fatura:
                         rel_disponiveis.remove(r)
                         break
 
-        # ETAPA 4: Monta tabelas e diagnósticos detalhados
+        # ETAPA 4: Monta tabelas com a nova coluna "Parcela" logo após "Fornecedor Fatura"
         for prep in itens_preparados:
             val_fat = prep["val_fat"]
             forn_fat = prep["forn_fat"]
+            parcela_fat = prep["parcela_fat"]
             data_fat = prep["data_fat"]
             comprador_fat = prep["comprador_fat"]
             notas_oficiais = prep["notas_oficiais"]
@@ -295,7 +317,6 @@ if bytes_salvos and lancamentos_fatura:
                     n for n in notas_oficiais if n not in notas_achadas_set
                 ]
 
-                # Define o diagnóstico claro na coluna Critério
                 if len(notas_oficiais) > 1 and notas_faltantes and eh_divergente:
                     tipo_match = f"⚠️ Parcial ({len(matches_encontrados)}/{len(notas_oficiais)} NFs) - Faltou NF: {', '.join(notas_faltantes)}"
                 elif any(m.get("casado_por_saldo") for m in matches_encontrados):
@@ -316,18 +337,19 @@ if bytes_salvos and lancamentos_fatura:
 
                 encontrados.append(
                     {
-                        "Data": data_fat,  # Col 1
-                        "Fornecedor Fatura": forn_fat,  # Col 2
-                        "Comprador": comprador_fat,  # Col 3
-                        "Fornecedor CHB": fornecedores_chb,  # Col 4
-                        "NF Fatura": nf_fatura_exibicao,  # Col 5
-                        "Valor Fatura": f"R$ {val_fat:,.2f}",  # Col 6
-                        "NF CHB": notas_chb,  # Col 7
+                        "Data": data_fat,
+                        "Fornecedor Fatura": forn_fat,
+                        "Parcela": parcela_fat,
+                        "Comprador": comprador_fat,
+                        "Fornecedor CHB": fornecedores_chb,
+                        "NF Fatura": nf_fatura_exibicao,
+                        "Valor Fatura": f"R$ {val_fat:,.2f}",
+                        "NF CHB": notas_chb,
                         "Divergência": (
                             f"R$ {diff:,.2f}" if eh_divergente else "Exato ✔"
-                        ),  # Col 8
-                        "Valor CHB": f"R$ {val_chb_somado:,.2f}",  # Col 9
-                        "Critério": tipo_match,  # Col 10
+                        ),
+                        "Valor CHB": f"R$ {val_chb_somado:,.2f}",
+                        "Critério": tipo_match,
                         "_divergente": eh_divergente,
                         "_nf_faltante": bool(notas_faltantes and eh_divergente),
                     }
@@ -338,6 +360,7 @@ if bytes_salvos and lancamentos_fatura:
                     {
                         "Data": data_fat,
                         "Fornecedor Fatura": forn_fat,
+                        "Parcela": parcela_fat,
                         "Comprador": comprador_fat,
                         "Valor Fatura": f"R$ {val_fat:,.2f}",
                         "NF Fatura": (
