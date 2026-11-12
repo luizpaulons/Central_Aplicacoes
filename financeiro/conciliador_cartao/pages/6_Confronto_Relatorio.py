@@ -245,9 +245,10 @@ if bytes_salvos and lancamentos_fatura:
                 )
                 notas_chb = ", ".join([m["nota_original"] for m in matches_encontrados])
                 diff = round(abs(val_fat - val_chb_somado), 2)
+                eh_divergente = diff > 0.009
 
                 soma_chb_localizados += val_chb_somado
-                if diff > 0.009:
+                if eh_divergente:
                     soma_divergencias += diff
                     qtd_divergencias += 1
 
@@ -265,10 +266,11 @@ if bytes_salvos and lancamentos_fatura:
                         "Valor Fatura": f"R$ {val_fat:,.2f}",  # Col 6
                         "NF CHB": notas_chb,  # Col 7
                         "Divergência": (
-                            f"R$ {diff:,.2f}" if diff > 0.009 else "Exato ✔"
+                            f"R$ {diff:,.2f}" if eh_divergente else "Exato ✔"
                         ),  # Col 8
                         "Valor CHB": f"R$ {val_chb_somado:,.2f}",  # Col 9
                         "Critério": tipo_match,  # Col 10
+                        "_divergente": eh_divergente,  # Flag interna para filtro
                     }
                 )
             else:
@@ -349,9 +351,41 @@ if bytes_salvos and lancamentos_fatura:
 
     with tab1:
         if encontrados:
-            df_ok = pd.DataFrame(encontrados)
-            df_ok.index = range(1, len(df_ok) + 1)
-            st.dataframe(df_ok, use_container_width=True)
+            # Filtro para mostrar todos ou somente divergentes
+            qtd_div = res["qtd_divergencias"]
+            qtd_exatos = len(encontrados) - qtd_div
+
+            rotulos_filtro_chb = {
+                "TODOS": f"Todos ({len(encontrados)})",
+                "DIVERGENTES": f"⚠️ Somente Divergentes ({qtd_div})",
+                "EXATOS": f"✔ Exatos ({qtd_exatos})",
+            }
+
+            filtro_chb = st.radio(
+                "Filtrar itens localizados:",
+                options=["TODOS", "DIVERGENTES", "EXATOS"],
+                format_func=lambda x: rotulos_filtro_chb[x],
+                key="filtro_confronto_chb",
+                horizontal=True,
+            )
+
+            if filtro_chb == "DIVERGENTES":
+                lista_exibicao = [x for x in encontrados if x.get("_divergente", False)]
+            elif filtro_chb == "EXATOS":
+                lista_exibicao = [
+                    x for x in encontrados if not x.get("_divergente", False)
+                ]
+            else:
+                lista_exibicao = encontrados
+
+            if lista_exibicao:
+                df_ok = pd.DataFrame(lista_exibicao).drop(
+                    columns=["_divergente"], errors="ignore"
+                )
+                df_ok.index = range(1, len(df_ok) + 1)
+                st.dataframe(df_ok, use_container_width=True)
+            else:
+                st.info("Nenhum item encontrado para o filtro selecionado.")
         else:
             st.info("Nenhum item foi confrontado.")
 
