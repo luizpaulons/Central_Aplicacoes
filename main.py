@@ -28,14 +28,14 @@ paginas_financeiro = [
         title="Consulta Cliente",
         icon="📊",
         url_path="consulta-cliente",
-    )
-        st.Page(
+    ),
+    st.Page(
         "financeiro/conciliador_cartao/Conciliador_Fatura.py",
         title="Conciliador de Fatura",
         icon="🏭",
         url_path="conciliador-fatura",
         # visibility="hidden",
-        )
+    ),
 ]
 
 # --- 3. PÁGINA DO MÓDULO PCP ---
