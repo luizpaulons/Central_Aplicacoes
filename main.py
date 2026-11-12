@@ -30,7 +30,7 @@ paginas_financeiro = [
         url_path="consulta-cliente",
     )
         st.Page(
-        "financeiro/Conciliador_Fatura.py",
+        "financeiro/conciliador_cartao/Conciliador_Fatura.py",
         title="Conciliador de Fatura",
         icon="🏭",
         url_path="conciliador-fatura",
