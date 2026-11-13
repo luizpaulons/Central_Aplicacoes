@@ -55,7 +55,7 @@ st.markdown("""
     """)
 
 st.page_link(
-    "pages/1_📦_liberacao_produtos.py",
+    "pages/1_liberacao_produtos.py",
     label="Ir para a rotina de Liberação de Produtos ➡️",
     icon="📦",
 )

@@ -68,7 +68,7 @@ paginas_compras = [
         url_path="liberacao-produtos-inicio",
     ),
     st.Page(
-        "compras/liberacao_produtos/pages/1_📦_liberacao_produtos.py",
+        "compras/liberacao_produtos/pages/1_liberacao_produtos.py",
         title="Manutenção e Liberação (CO13T)",
         icon="📦",
         url_path="liberacao-produtos-operacional",
