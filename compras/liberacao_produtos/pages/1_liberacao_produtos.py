@@ -10,17 +10,19 @@ from dotenv import load_dotenv
 
 # Carrega o .env da pasta atual ou da pasta raiz 'Central'
 load_dotenv()
-caminho_env_raiz = Path(__file__).resolve().parent.parent / ".env"
+caminho_env_raiz = Path(__file__).resolve().parent.parent.parent / ".env"
 if caminho_env_raiz.exists():
     load_dotenv(dotenv_path=caminho_env_raiz)
+else:
+    caminho_env_alt = Path(__file__).resolve().parent.parent / ".env"
+    if caminho_env_alt.exists():
+        load_dotenv(dotenv_path=caminho_env_alt)
 
-st.set_page_config(
-    page_title="Liberação de Produtos - CO13T", page_icon="📦", layout="wide"
-)
+# OBS: st.set_page_config foi removido daqui pois já é executado no main.py
 
 
 # -------------------------------------------------------------
-# CONEXÃO COM O BANCO DE DADOS
+# CONEXÃO COM O BANCO DE DADOS (VIA .ENV)
 # -------------------------------------------------------------
 def get_connection():
     cfg = {
@@ -314,15 +316,25 @@ def confirmar_gravacao_dialog(
                     "=" * 60,
                 ]
                 + linhas_log
-                + ["\n" + "=" * 60, f"Total de registros alterados: {total_alterados}"]
+                + [
+                    "\n" + "=" * 60,
+                    f"Total de registros alterados: {total_alterados}",
+                ]
             )
 
             with st.spinner("Gravando alterações no banco de dados..."):
                 sucesso, erro = gravar_alteracoes_banco(updates_sql)
 
             if sucesso:
+                # Salva o arquivo .txt automaticamente na pasta logs/
+                pasta_logs = Path(__file__).resolve().parent / "logs"
+                pasta_logs.mkdir(parents=True, exist_ok=True)
+                caminho_arquivo_log = pasta_logs / f"{timestamp_nome}.txt"
+                with open(caminho_arquivo_log, "w", encoding="utf-8") as f:
+                    f.write("\n".join(cabecalho_log))
+
                 st.session_state["msg_sucesso"] = (
-                    f"✓ {total_alterados} registro(s) gravado(s) com sucesso no SQL Server!"
+                    f"✓ {total_alterados} registro(s) gravado(s) com sucesso no SQL Server! (Log salvo em: {caminho_arquivo_log})"
                 )
                 st.session_state["conteudo_log"] = "\n".join(cabecalho_log)
                 st.session_state["conteudo_sql_exec"] = (
@@ -353,10 +365,20 @@ if "df_original" not in st.session_state:
 if "script_sql_previo" not in st.session_state:
     st.session_state["script_sql_previo"] = None
 
+
 # -------------------------------------------------------------
 # CORPO DA PÁGINA OPERACIONAL
 # -------------------------------------------------------------
-st.title("📦 Manutenção em Lote - Tabela CO13T")
+col_titulo, col_voltar = st.columns([4, 1])
+with col_titulo:
+    st.title("📦 Manutenção em Lote - Tabela CO13T")
+with col_voltar:
+    st.write("")
+    st.page_link(
+        "compras/liberacao_produtos/liberacao_produtos.py",
+        label="⬅️ Voltar ao Início",
+        icon="📖",
+    )
 
 if "msg_sucesso" in st.session_state:
     st.success(st.session_state["msg_sucesso"])
@@ -531,7 +553,9 @@ if (
             lote_cus2 = lote_cus1
 
         btn_aplicar_lote = st.button(
-            "🚀 Aplicar Alterações ao Lote", type="secondary", use_container_width=True
+            "🚀 Aplicar Alterações ao Lote",
+            type="secondary",
+            use_container_width=True,
         )
 
         if btn_aplicar_lote:
