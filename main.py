@@ -8,7 +8,7 @@ def home():
     st.title("🏢 Central de Aplicações")
     st.markdown("Selecione uma das ferramentas no menu superior para começar:")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.info(
             "### 📊 Financeiro\n**Consulta Cliente:** Consulta de limites, títulos e histórico financeiro."
@@ -16,6 +16,10 @@ def home():
     with col2:
         st.info(
             "### 🏭 PCP\n**Estatística de Modelos:** Gerenciamento de solados, EVA e relatórios CHB."
+        )
+    with col3:
+        st.info(
+            "### 🛒 Compras\n**Liberação de Produtos:** Manutenção em lote de preços, custos e desbloqueio (`CO13T`)."
         )
 
 
@@ -38,8 +42,7 @@ paginas_financeiro = [
     ),
 ]
 
-# --- 3. PÁGINA DO MÓDULO PCP ---
-# Aponta exatamente para o arquivo existente na pasta pcp/
+# --- 3. PÁGINAS DO MÓDULO PCP ---
 paginas_pcp = [
     st.Page(
         "pcp/estatistica_modelos/Estatistica_Modelos.py",
@@ -51,14 +54,29 @@ paginas_pcp = [
         "pcp/planos_elaboracao/planos_elaboracao.py",
         title="Planos em Elaboração",
         icon="🏭",
-        url_path="planos-elaboração",
+        url_path="planos-elaboracao",
         # visibility="hidden",
     ),
 ]
 
-# --- 4. AGRUPAMENTO DOS MENUS ---
-rotas = {"Central": [pagina_home], "Financeiro": paginas_financeiro, "PCP": paginas_pcp}
+# --- 4. PÁGINAS DO MÓDULO COMPRAS ---
+paginas_compras = [
+    st.Page(
+        "compras/liberacao_produtos/liberacao_produtos.py",
+        title="Liberação de Produtos",
+        icon="📦",
+        url_path="liberacao-produtos",
+    ),
+]
 
-# --- 5. NAVEGAÇÃO NO TOPO ---
+# --- 5. AGRUPAMENTO DOS MENUS ---
+rotas = {
+    "Central": [pagina_home],
+    "Financeiro": paginas_financeiro,
+    "PCP": paginas_pcp,
+    "Compras": paginas_compras,
+}
+
+# --- 6. NAVEGAÇÃO NO TOPO ---
 pg = st.navigation(rotas, position="top")
 pg.run()
