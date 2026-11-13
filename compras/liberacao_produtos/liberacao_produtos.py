@@ -1,12 +1,12 @@
 import streamlit as st
 
 # Configuração da página principal
-st.set_page_config(
-    page_title="Gestão de Produtos - CO13T",
-    page_icon="📖",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# st.set_page_config(
+#    page_title="Gestão de Produtos - CO13T",
+#    page_icon="📖",
+#    layout="wide",
+#    initial_sidebar_state="expanded",
+# )
 
 st.title("📖 Início - Gestão de Produtos")
 st.markdown("### Manutenção e Liberação em Lote de Produtos (`CO13T`)")
