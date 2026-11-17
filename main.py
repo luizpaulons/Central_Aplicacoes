@@ -66,7 +66,7 @@ paginas_compras = [
         title="Liberação de Produtos",
         icon="📦",
         url_path="liberacao-produtos",
-        # visibility="hidden",
+        visibility="hidden",
     ),
 ]
 
